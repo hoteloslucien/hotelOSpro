@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="theme-color" content="#f6f5f0"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Hotel OS"/>
+  <title>Hotel OS</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="screen-login" class="screen active">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="logo-icon" style="background:linear-gradient(135deg,#0f1d35,#1a2d4d);width:72px;height:72px;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 32px rgba(15,29,53,.25)">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 9h.01"/><path d="M15 9h.01"/><path d="M9 13h.01"/><path d="M15 13h.01"/>
+        </svg>
+      </div>
+      <h1>Hotel OS</h1>
+      <p>Système opérationnel hôtelier</p>
+    </div>
+    <div class="card login-card">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="votre@email.fr"
+          autocomplete="email" autocapitalize="none" spellcheck="false"/>
+      </div>
+      <div class="form-group">
+        <label>Mot de passe</label>
+        <input type="password" id="login-password" placeholder="••••••••"
+          autocomplete="current-password"
+          onkeydown="if(event.key==='Enter') App.login()"/>
+      </div>
+      <button class="btn btn-primary btn-full" id="login-btn" onclick="App.login()">
+        Se connecter
+      </button>
+      <div id="login-error" class="alert alert-error hidden"></div>
+    </div>
+    <p class="login-version">Hotel OS · V1.0</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="screen-app" class="screen hidden">
+
+  <header class="app-header">
+    <div class="header-left">
+      <button class="btn-icon header-back-btn hidden" id="header-back-btn" onclick="App.goBack()" aria-label="Retour">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <button class="btn-icon" id="header-menu-btn" onclick="App.toggleMenu()" aria-label="Menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/>
+        </svg>
+      </button>
+      <div class="header-title">
+        <span id="header-page-title">Dashboard</span>
+        <small>Vue terrain</small>
+      </div>
+    </div>
+    <div class="header-right">
+      <div id="shift-timer-widget" class="shift-timer-widget hidden">
+        <span id="shift-timer-dot" class="shift-dot"></span>
+        <span id="shift-timer-text" class="shift-time">00:00:00</span>
+      </div>
+      <button class="btn-icon" id="notif-bell-btn" onclick="App.navigate('notifications')" aria-label="Notifications" style="position:relative">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span id="notif-badge" class="unread-badge hidden"></span>
+      </button>
+      <button class="btn-icon" onclick="App.logout()" aria-label="Déconnexion">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Side menu -->
+  <nav id="side-menu" class="side-menu hidden">
+    <div class="menu-user">
+      <div class="menu-avatar" id="menu-avatar">?</div>
+      <div>
+        <div class="menu-name" id="menu-name">…</div>
+        <div class="menu-role" id="menu-role">…</div>
+      </div>
+    </div>
+    <div class="menu-section">Navigation</div>
+    <ul class="menu-list" id="nav-links">
+      <li data-page="dashboard">📊 Dashboard</li>
+      <li data-page="interventions">🔧 Interventions</li>
+      <li data-page="tasks">📋 Tâches</li>
+      <li data-page="rooms">🛏️ Chambres</li>
+      <li data-page="messages">💬 Messagerie <span id="msg-unread-badge-menu" class="unread-badge-menu hidden"></span></li>
+      <li data-page="notifications">🔔 Notifications <span id="notif-unread-badge-menu" class="unread-badge-menu hidden"></span></li>
+      <li data-page="attendance">🕐 Présence</li>
+      <li data-page="rounds">🗺️ Tournées</li>
+      <li data-page="reviews">⭐ Avis clients</li>
+      <li data-page="equipment">⚙️ Équipements</li>
+      <li data-page="stock">📦 Stock</li>
+      <li data-page="settings">⚙️ Réglages</li>
+    </ul>
+    <div class="menu-section">Session</div>
+    <ul class="menu-list">
+      <li onclick="App.logout()">↩ Déconnexion</li>
+    </ul>
+  </nav>
+  <div id="menu-overlay" class="menu-overlay hidden" onclick="App.closeMenu()"></div>
+
+  <div id="breadcrumb" class="breadcrumb-bar" style="display:none"></div>
+
+  <main id="page-content" class="page-content"></main>
+
+  <!-- Bottom nav — 5 modules core -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="bnav-item active" data-page="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <small>Accueil</small>
+    </button>
+    <button class="bnav-item" data-page="interventions">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      <small>Interventions</small>
+    </button>
+    <button class="bnav-item" data-page="tasks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      <small>Tâches</small>
+    </button>
+    <button class="bnav-item" data-page="rooms">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+      <small>Chambres</small>
+    </button>
+    <button class="bnav-item" data-page="messages" style="position:relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <small>Messages</small>
+      <span id="msg-unread-badge" class="unread-badge hidden"></span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="Modal.close()">
+  <div id="modal-box" class="modal-box" onclick="event.stopPropagation()">
+    <div id="modal-handle" class="modal-handle"><div class="modal-handle-bar"></div></div>
+    <div class="modal-header">
+      <h3 id="modal-title"></h3>
+      <button class="btn-icon" onclick="Modal.close()" style="color:var(--text-2)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="modal-body"   class="modal-body"></div>
+    <div id="modal-footer" class="modal-footer"></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/modal.js"></script>
+<script src="js/pages/dashboard.js"></script>
+<script src="js/pages/rooms.js"></script>
+<script src="js/pages/tasks.js"></script>
+<script src="js/pages/interventions.js"></script>
+<script src="js/pages/rounds.js"></script>
+<script src="js/pages/messages.js"></script>
+<script src="js/pages/attendance.js"></script>
+<script src="js/pages/conversations.js"></script>
+<script src="js/pages/reviews.js"></script>
+<script src="js/pages/equipment.js"></script>
+<script src="js/pages/notifications.js"></script>
+<script src="js/pages/stock.js"></script>
+<script src="js/pages/settings.js"></script>
+<script src="js/app.js"></script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
