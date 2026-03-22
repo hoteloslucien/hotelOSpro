@@ -13,11 +13,33 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from .database import Base, engine
+from .database import Base, engine, SessionLocal
+from .auth import hash_password
 from . import models          # noqa — enregistre les modèles métier
 from . import models_roles    # noqa — enregistre les modèles rôles/permissions
 
+def ensure_default_admin():
+    db = SessionLocal()
+    try:
+        existing = db.query(models.User).first()
+        if existing:
+            return
+        
+        admin = models.User(
+            name="Admin",
+            email="admin@hotel.fr",
+            hash_password=hash_password("admin123"),
+            role="direction",
+            is_active=True,
+        )
+        db.add(admin)
+        db.commit()
+    finally:
+        db.close()    
+
+
 Base.metadata.create_all(bind=engine)
+ensure_default_admin()
 
 
 
