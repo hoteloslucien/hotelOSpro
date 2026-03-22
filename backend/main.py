@@ -19,6 +19,8 @@ from . import models_roles    # noqa — enregistre les modèles rôles/permissi
 
 Base.metadata.create_all(bind=engine)
 
+from . import seed
+seed.run()
 
 from .routers import (
     auth_router, users_router, rooms_router, tasks_router,
