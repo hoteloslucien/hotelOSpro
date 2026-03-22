@@ -17,7 +17,8 @@ from .database import Base, engine
 from . import models          # noqa — enregistre les modèles métier
 from . import models_roles    # noqa — enregistre les modèles rôles/permissions
 
-print("MAIN FACBB6C SANS SEED")
+Base.metadata.create_all(bind=engine)
+
 
 from .routers import (
     auth_router, users_router, rooms_router, tasks_router,
