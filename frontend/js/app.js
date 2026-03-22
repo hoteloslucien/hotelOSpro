@@ -214,10 +214,18 @@ const App = {
       this._currentPage = null;
     }
     // Clear UI immediately
-    document.getElementById('header-user-name').textContent = '';
-    document.getElementById('menu-name').textContent = '';
-    document.getElementById('menu-role').textContent = '';
-    document.getElementById('menu-avatar').textContent = '?';
+    const headerUserName = document.getElementById('header-user-name');
+    if (headerUserName) headerUserName.textContent = '';
+
+    const menuName = document.getElementById('menu-name');
+    if (menuName) menuName.textContent = '';
+
+    const menuRole = document.getElementById('menu-role');
+    if (menuRole) menuRole.textContent = '';
+
+    const menuAvatar = document.getElementById('menu-avatar');
+    if (menuAvatar) menuAvatar.textContent = '?';
+    
     var nb = document.getElementById('notif-badge'); if (nb) nb.classList.add('hidden');
     var mb = document.getElementById('msg-unread-badge'); if (mb) mb.classList.add('hidden');
     var sw = document.getElementById('shift-timer-widget'); if (sw) sw.classList.add('hidden');
