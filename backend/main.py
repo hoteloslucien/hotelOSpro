@@ -28,7 +28,7 @@ def ensure_default_admin():
         admin = models.User(
             name="Admin",
             email="admin@hotel.fr",
-            hash_password=hash_password("admin123"),
+            password_hash=hash_password("admin123"),
             role="direction",
             is_active=True,
         )
