@@ -21,18 +21,22 @@ from . import models_roles    # noqa — enregistre les modèles rôles/permissi
 def ensure_bootstrap_data():
     db = SessionLocal()
     try:
-        has_user = db.query(models.User).first() is not None
-        has_role = db.query(models_roles.Role).first() is not None
-        has_perm = db.query(models_roles.Permission).first() is not None
+        direction_role = db.query(models_roles.Role).filter(
+            models_roles.Role.name == "direction",
+            models_roles.Role.is_active == True
+        ).first()
 
-        has_role_perm = False
-        if hasattr(models_roles, "RolePermission"):
-            has_role_perm = db.query(models_roles.RolePermission).first() is not None
-        elif hasattr(models_roles, "role_permissions"):
-            result = db.execute(models_roles.role_permissions.select().limit(1)).first()
-            has_role_perm = result is not None
+        has_direction_perms = False
+        if direction_role:
+            has_direction_perms = db.query(models_roles.RolePermission).filter(
+                models_roles.RolePermission.role_id == direction_role.id
+            ).first() is not None
 
-        if has_user and has_role and has_perm and has_role_perm:
+        has_admin = db.query(models.User).filter(
+            models.User.email == "admin@hotel.fr"
+        ).first() is not None
+
+        if direction_role and has_direction_perms and has_admin:
             return
     finally:
         db.close()
