@@ -18,28 +18,31 @@ from .auth import hash_password
 from . import models          # noqa — enregistre les modèles métier
 from . import models_roles    # noqa — enregistre les modèles rôles/permissions
 
-def ensure_default_admin():
+def ensure_bootstrap_data():
     db = SessionLocal()
     try:
-        existing = db.query(models.User).first()
-        if existing:
+        has_user = db.query(models.User).first() is not None
+        has_role = db.query(models_roles.Role).first() is not None
+        has_perm = db.query(models_roles.Permission).first() is not None
+
+        has_role_perm = False
+        if hasattr(models_roles, "RolePermission"):
+            has_role_perm = db.query(models_roles.RolePermission).first() is not None
+        elif hasattr(models_roles, "role_permissions"):
+            result = db.execute(models_roles.role_permissions.select().limit(1)).first()
+            has_role_perm = result is not None
+
+        if has_user and has_role and has_perm and has_role_perm:
             return
-        
-        admin = models.User(
-            name="Admin",
-            email="admin@hotel.fr",
-            password_hash=hash_password("admin123"),
-            role="direction",
-            is_active=True,
-        )
-        db.add(admin)
-        db.commit()
     finally:
-        db.close()    
+        db.close()
+
+    from . import seed
+    seed.run()
 
 
 Base.metadata.create_all(bind=engine)
-ensure_default_admin()
+ensure_bootstrap_data()
 
 
 
