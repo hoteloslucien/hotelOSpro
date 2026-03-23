@@ -397,13 +397,19 @@ def run():
 
         role_map = {}
 
-        for code, data in roles_data.items():
-            role = db.query(Role).filter(Role.code == code).first()
+        for role_name, data in roles_data.items():
+            role = db.query(Role).filter(Role.name == role_name).first()
             if not role:
-                role = Role(code=code, label=data["label"])
+                role = Role(
+                    name=role_name,
+                    label=data["label"],
+                    is_active=True,
+                    is_systeme=True,
+                    
+                )
                 db.add(role)
                 db.flush()
-            role_map[code] = role
+            role_map[role_name] = role
 
         # ----------------------------
         # 3) Liaisons rôle -> permissions
