@@ -23,13 +23,13 @@ const SettingsPage = {
       canUsers ? { icon:'👥', title:'Utilisateurs',       sub:'Comptes & accès',               fn:'SettingsPage.showUsers()' }    : null,
       canRoles ? { icon:'🔐', title:'Rôles & permissions',sub:'Droits par rôle',                fn:'SettingsPage.showRoles()' }    : null,
       { icon:'🏨', title:'Hôtel',                         sub:'Infos établissement',            fn:'SettingsPage.showHotel()' },
-      { icon:'📍', title:'Zones & Lieux',                   sub:'Espaces, étages, zones',         fn:'SettingsPage.showModuleInfo("zones")' },
-      { icon:'🛏️', title:'Chambres',                      sub:'Types & numérotation',           fn:'SettingsPage.showModuleInfo("chambres")' },
-      { icon:'🔧', title:'Interventions',                  sub:'Catégories & priorités',         fn:'SettingsPage.showModuleInfo("interventions")' },
-      { icon:'📋', title:'Tâches',                         sub:'Services & statuts',             fn:'SettingsPage.showModuleInfo("tâches")' },
-      { icon:'💬', title:'Messagerie',                     sub:'Canaux de communication',        fn:'SettingsPage.showModuleInfo("messagerie")' },
-      { icon:'🔔', title:'Notifications',                  sub:'Alertes & rappels',              fn:'SettingsPage.showModuleInfo("notifications")' },
-      { icon:'📦', title:'Stock',                          sub:'Seuils & catégories',            fn:'SettingsPage.showModuleInfo("stock")' },
+      { icon:'📍', title:'Zones & Lieux',                   sub:'Espaces, étages, zones',         fn:"SettingsPage.showModuleInfo('zones')" },
+      { icon:'🛏️', title:'Chambres',                      sub:'Types & numérotation',           fn:"SettingsPage.showModuleInfo('chambres')" },
+      { icon:'🔧', title:'Interventions',                  sub:'Catégories & priorités',         fn:"SettingsPage.showModuleInfo('interventions')" },
+      { icon:'📋', title:'Tâches',                         sub:'Services & statuts',             fn:"SettingsPage.showModuleInfo('tâches')" },
+      { icon:'💬', title:'Messagerie',                     sub:'Canaux de communication',        fn:"SettingsPage.showModuleInfo('messagerie')" },
+      { icon:'🔔', title:'Notifications',                  sub:'Alertes & rappels',              fn:"SettingsPage.showModuleInfo('notifications')" },
+      { icon:'📦', title:'Stock',                          sub:'Seuils & catégories',            fn:"SettingsPage.showModuleInfo('stock')" },
     ].filter(Boolean);
 
     const grid = cards.map(c => `
