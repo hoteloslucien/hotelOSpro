@@ -411,13 +411,20 @@ const App = {
       sep.textContent = '— Modules avancés';
 
       const firstAdv = [...navLinks.querySelectorAll('[data-page]')]
-        .find(el => {
-          const page = el.dataset.page;
-          const perm = this.MODULE_PERMS[page];
-          return this.ADVANCED_MODULES.includes(page) && (!perm || this.has(perm));
-        });
+  .find(el => {
+    const page = el.dataset.page;
+    const perm = this.MODULE_PERMS[page];
+    return this.ADVANCED_MODULES.includes(page) && (!perm || this.has(perm));
+  });
 
-      if (firstAdv) navLinks.insertBefore(sep, firstAdv.parentElement);
+if (firstAdv) {
+  const firstAdvItem = firstAdv.closest('li');
+  if (firstAdvItem && firstAdvItem.parentElement === navLinks) {
+    navLinks.insertBefore(sep, firstAdvItem);
+  } else {
+    navLinks.appendChild(sep);
+  }
+}
     }
   },
 
