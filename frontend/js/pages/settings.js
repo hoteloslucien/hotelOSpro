@@ -22,7 +22,7 @@ const SettingsPage = {
     const cards = [
       canUsers ? { icon:'👥', title:'Utilisateurs',       sub:'Comptes & accès',               fn:'SettingsPage.showUsers()' }    : null,
       canRoles ? { icon:'🔐', title:'Rôles & permissions',sub:'Droits par rôle',                fn:'SettingsPage.showRoles()' }    : null,
-      { icon:'🏨', title:'Hôtel',                         sub:'Infos établissement',            fn:'SettingsPage.showHotel()' },
+      { icon:'🏨', title:'Hôtel', sub:'Infos établissement', fn:'SettingsPage._showHotelsManager()' },
       { icon:'📍', title:'Zones & Lieux',                   sub:'Espaces, étages, zones',         fn:"SettingsPage.showModuleInfo('zones')" },
       { icon:'🛏️', title:'Chambres',                      sub:'Types & numérotation',           fn:"SettingsPage.showModuleInfo('chambres')" },
       { icon:'🔧', title:'Interventions',                  sub:'Catégories & priorités',         fn:"SettingsPage.showModuleInfo('interventions')" },
@@ -337,18 +337,51 @@ const SettingsPage = {
   },
 
   // ── Sections informatives ────────────────────────────────────────
-  showHotel() {
-    Modal.open('🏨 Hôtel', `
-      <div class="alert alert-info" style="font-size:13px">
-        Cette section permettra de configurer le nom de l'établissement,
-        le nombre d'étages, le logo, et les informations de contact.
-      </div>
-      <p style="font-size:13px;color:var(--text-2);margin-top:12px">
-        Disponible dans une prochaine version.
-      </p>`,
-      `<button class="btn btn-secondary" onclick="Modal.close()">Fermer</button>`
-    );
+  async _showHotelsManager() {
+    const el = document.getElementById('page-content');
+    if (!el) return;
+  
+    el.innerHTML = Utils.loader();
+  
+    try {
+      const hotels = await Api.hotels();
+  
+      let h = ''
+        + '<div class="page-header"><div>'
+        + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
+        + '<div class="page-h1">🏨 Hôtel</div>'
+        + '<div class="page-sub">' + ((hotels && hotels.length) || 0) + ' hôtel(s) configuré(s)</div>'
+        + '</div>'
+        + '</div>';
+  
+      if (hotels && hotels.length > 0) {
+        h += '<div class="activity-list">';
+        for (let i = 0; i < hotels.length; i++) {
+          const hotel = hotels[i];
+          h += ''
+            + '<div class="list-item" data-hotel-id="' + hotel.id + '">'
+            +   '<div class="list-item-icon" style="background:rgba(59,130,246,.12)">🏨</div>'
+            +   '<div class="list-item-body">'
+            +     '<div class="list-item-title">' + (hotel.name || 'Hôtel sans nom') + '</div>'
+            +     '<div class="list-item-sub">' + ((hotel.city || '') + (hotel.address ? ' · ' + hotel.address : '')) + '</div>'
+            +   '</div>'
+            + '</div>';
+        }
+        h += '</div>';
+      } else {
+        h += Utils.emptyState('🏨', 'Aucun hôtel configuré');
+        h += '<div style="margin-top:12px;color:var(--text-2);font-size:13px">La création d’hôtel sera branchée ensuite.</div>';
+      }
+  
+      el.innerHTML = h;
+  
+    } catch (e) {
+      el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+    }
   },
+  
+      
+  
 
   showModuleInfo(module) {
     if (module === 'notifications') { this._showNotifPrefs(); return; }
