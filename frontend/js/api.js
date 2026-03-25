@@ -146,7 +146,7 @@ const Api = {
   // ── Stock ─────────────────────────────────────────────────────
   stockItems:      function(low) { return Api.get('/stock/items' + (low ? '?low_only=true' : '')); },
   createStockItem: function(d)   { return Api.post('/stock/items', d); },
-  stockMovements:  function(iid) { return Api.get('/stock/movements' + (iid ? '?item_id=' + iid : '')); },
+  stockMovements:  function(iid) { return Api.get('/s:tock/movements' + (iid ? '?item_id=' + iid : '')); },
   addMovement:     function(d)   { return Api.post('/stock/movements', d); },
 
   // ── Users ─────────────────────────────────────────────────────
@@ -162,6 +162,7 @@ const Api = {
 
   // ── Socle ─────────────────────────────────────────────────────
   hotels:     function()  { return Api.get('/hotels'); },
+  rooms:      function() { return Api.get('/rooms'); },
   zones:      function(p) { return Api.get('/zones' + Api._qs(p || {})); },
   createZone: function(d) { return Api.post('/zones', d); },
   updateZone: function(id,d) { return Api.patch('/zones/' + id, d); },

@@ -24,7 +24,7 @@ const SettingsPage = {
       canRoles ? { icon:'🔐', title:'Rôles & permissions',sub:'Droits par rôle',                fn:'SettingsPage.showRoles()' }    : null,
       { icon:'🏨', title:'Hôtel', sub:'Infos établissement', fn:'SettingsPage._showHotelsManager()' },
       { icon:'📍', title:'Zones & Lieux',                   sub:'Espaces, étages, zones',         fn:"SettingsPage.showModuleInfo('zones')" },
-      { icon:'🛏️', title:'Chambres',                      sub:'Types & numérotation',           fn:"SettingsPage.showModuleInfo('chambres')" },
+      { icon:'🛏️', title:'Chambres', sub:'Inventaire & statuts', fn:'SettingsPage._showRoomsManager()' },
       { icon:'🔧', title:'Interventions',                  sub:'Catégories & priorités',         fn:"SettingsPage.showModuleInfo('interventions')" },
       { icon:'📋', title:'Tâches',                         sub:'Services & statuts',             fn:"SettingsPage.showModuleInfo('tâches')" },
       { icon:'💬', title:'Messagerie',                     sub:'Canaux de communication',        fn:"SettingsPage.showModuleInfo('messagerie')" },
@@ -380,7 +380,51 @@ const SettingsPage = {
     }
   },
   
-      
+  async _showRoomsManager() {
+    const el = document.getElementById('page-content');
+    if (!el) return;
+  
+    el.innerHTML = Utils.loader();
+  
+    try {
+      const rooms = await Api.rooms();
+  
+      let h = ''
+        + '<div class="page-header"><div>'
+        + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
+        + '<div class="page-h1">🛏️ Chambres</div>'
+        + '<div class="page-sub">' + ((rooms && rooms.length) || 0) + ' chambre(s) configurée(s)</div>'
+        + '</div>'
+        + '</div>';
+  
+      if (rooms && rooms.length > 0) {
+        h += '<div class="activity-list">';
+        for (let i = 0; i < rooms.length; i++) {
+          const room = rooms[i];
+          h += ''
+            + '<div class="list-item" data-room-id="' + room.id + '">'
+            +   '<div class="list-item-icon" style="background:rgba(16,185,129,.12)">🛏️</div>'
+            +   '<div class="list-item-body">'
+            +     '<div class="list-item-title">' + (room.number || room.name || ('Chambre #' + room.id)) + '</div>'
+            +     '<div class="list-item-sub">'
+            +       + (room.floor ? ('Étage ' + room.floor) : '')
+            +       + (room.status ? ((room.floor ? ' · ' : '') + room.status) : '')
+            +     '</div>'
+            +   '</div>'
+            + '</div>';
+        }
+        h += '</div>';
+      } else {
+        h += Utils.emptyState('🛏️', 'Aucune chambre configurée');
+        h += '<div style="margin-top:12px;color:var(--text-2);font-size:13px">Tu pourras ajouter tes vraies chambres ensuite.</div>';
+      }
+  
+      el.innerHTML = h;
+  
+    } catch (e) {
+      el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+    }
+  },    
   
 
   showModuleInfo(module) {
