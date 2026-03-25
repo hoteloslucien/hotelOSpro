@@ -26,7 +26,7 @@ const SettingsPage = {
       { icon:'📍', title:'Zones & Lieux',                   sub:'Espaces, étages, zones',         fn:"SettingsPage.showModuleInfo('zones')" },
       { icon:'🛏️', title:'Chambres', sub:'Inventaire & statuts', fn:'SettingsPage._showRoomsManager()' },
       { icon:'🛠️', title:'Interventions', sub:'Types & règles', fn:'SettingsPage._showInterventionsManager()' },
-      { icon:'📋', title:'Tâches',                         sub:'Services & statuts',             fn:"SettingsPage.showModuleInfo('tâches')" },
+      { icon:'✅', title:'Tâches', sub:'Workflow & statuts', fn:'SettingsPage._showTasksManager()' },
       { icon:'💬', title:'Messagerie',                     sub:'Canaux de communication',        fn:"SettingsPage.showModuleInfo('messagerie')" },
       { icon:'🔔', title:'Notifications',                  sub:'Alertes & rappels',              fn:"SettingsPage.showModuleInfo('notifications')" },
       { icon:'📦', title:'Stock',                          sub:'Seuils & catégories',            fn:"SettingsPage.showModuleInfo('stock')" },
@@ -463,6 +463,52 @@ const SettingsPage = {
       } else {
         h += Utils.emptyState('🛠️', 'Aucune intervention');
         h += '<div style="margin-top:12px;color:var(--text-2);font-size:13px">Tu pourras créer de vraies interventions ensuite.</div>';
+      }
+  
+      el.innerHTML = h;
+  
+    } catch (e) {
+      el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+    }
+  },
+
+  async _showTasksManager() {
+    const el = document.getElementById('page-content');
+    if (!el) return;
+  
+    el.innerHTML = Utils.loader();
+  
+    try {
+      const tasks = await Api.tasks();
+  
+      let h = ''
+        + '<div class="page-header"><div>'
+        + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
+        + '<div class="page-h1">✅ Tâches</div>'
+        + '<div class="page-sub">' + ((tasks && tasks.length) || 0) + ' tâche(s)</div>'
+        + '</div>'
+        + '</div>';
+  
+      if (tasks && tasks.length > 0) {
+        h += '<div class="activity-list">';
+        for (let i = 0; i < tasks.length; i++) {
+          const task = tasks[i];
+          h += ''
+            + '<div class="list-item" data-task-id="' + task.id + '">'
+            +   '<div class="list-item-icon" style="background:rgba(34,197,94,.12)">✅</div>'
+            +   '<div class="list-item-body">'
+            +     '<div class="list-item-title">' + (task.title || ('Tâche #' + task.id)) + '</div>'
+            +     '<div class="list-item-sub">'
+            +       + (task.priority ? ('Priorité ' + task.priority) : '')
+            +       + (task.status ? ((task.priority ? ' · ' : '') + task.status) : '')
+            +     '</div>'
+            +   '</div>'
+            + '</div>';
+        }
+        h += '</div>';
+      } else {
+        h += Utils.emptyState('✅', 'Aucune tâche');
+        h += '<div style="margin-top:12px;color:var(--text-2);font-size:13px">Tu pourras créer de vraies tâches ensuite.</div>';
       }
   
       el.innerHTML = h;
