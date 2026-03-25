@@ -25,7 +25,7 @@ const SettingsPage = {
       { icon:'🏨', title:'Hôtel', sub:'Infos établissement', fn:'SettingsPage._showHotelsManager()' },
       { icon:'📍', title:'Zones & Lieux',                   sub:'Espaces, étages, zones',         fn:"SettingsPage.showModuleInfo('zones')" },
       { icon:'🛏️', title:'Chambres', sub:'Inventaire & statuts', fn:'SettingsPage._showRoomsManager()' },
-      { icon:'🔧', title:'Interventions',                  sub:'Catégories & priorités',         fn:"SettingsPage.showModuleInfo('interventions')" },
+      { icon:'🛠️', title:'Interventions', sub:'Types & règles', fn:'SettingsPage._showInterventionsManager()' },
       { icon:'📋', title:'Tâches',                         sub:'Services & statuts',             fn:"SettingsPage.showModuleInfo('tâches')" },
       { icon:'💬', title:'Messagerie',                     sub:'Canaux de communication',        fn:"SettingsPage.showModuleInfo('messagerie')" },
       { icon:'🔔', title:'Notifications',                  sub:'Alertes & rappels',              fn:"SettingsPage.showModuleInfo('notifications')" },
@@ -426,6 +426,51 @@ const SettingsPage = {
     }
   },    
   
+  async _showInterventionsManager() {
+    const el = document.getElementById('page-content');
+    if (!el) return;
+  
+    el.innerHTML = Utils.loader();
+  
+    try {
+      const interventions = await Api.interventions();
+  
+      let h = ''
+        + '<div class="page-header"><div>'
+        + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
+        + '<div class="page-h1">🛠️ Interventions</div>'
+        + '<div class="page-sub">' + ((interventions && interventions.length) || 0) + ' intervention(s)</div>'
+        + '</div>'
+        + '</div>';
+  
+      if (interventions && interventions.length > 0) {
+        h += '<div class="activity-list">';
+        for (let i = 0; i < interventions.length; i++) {
+          const it = interventions[i];
+          h += ''
+            + '<div class="list-item" data-intervention-id="' + it.id + '">'
+            +   '<div class="list-item-icon" style="background:rgba(245,158,11,.12)">🛠️</div>'
+            +   '<div class="list-item-body">'
+            +     '<div class="list-item-title">' + (it.title || ('Intervention #' + it.id)) + '</div>'
+            +     '<div class="list-item-sub">'
+            +       + (it.priority ? ('Priorité ' + it.priority) : '')
+            +       + (it.status ? ((it.priority ? ' · ' : '') + it.status) : '')
+            +     '</div>'
+            +   '</div>'
+            + '</div>';
+        }
+        h += '</div>';
+      } else {
+        h += Utils.emptyState('🛠️', 'Aucune intervention');
+        h += '<div style="margin-top:12px;color:var(--text-2);font-size:13px">Tu pourras créer de vraies interventions ensuite.</div>';
+      }
+  
+      el.innerHTML = h;
+  
+    } catch (e) {
+      el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+    }
+  },
 
   showModuleInfo(module) {
     if (module === 'notifications') { this._showNotifPrefs(); return; }

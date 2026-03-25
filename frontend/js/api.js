@@ -163,6 +163,7 @@ const Api = {
   // ── Socle ─────────────────────────────────────────────────────
   hotels:     function()  { return Api.get('/hotels'); },
   rooms:      function() { return Api.get('/rooms'); },
+  interventions: function() { return Api.get('/interventions'); },
   zones:      function(p) { return Api.get('/zones' + Api._qs(p || {})); },
   createZone: function(d) { return Api.post('/zones', d); },
   updateZone: function(id,d) { return Api.patch('/zones/' + id, d); },
