@@ -347,12 +347,13 @@ const SettingsPage = {
       const hotels = await Api.hotels();
   
       let h = ''
-        + '<div class="page-header"><div>'
-        + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
-        + '<div class="page-h1">🏨 Hôtel</div>'
-        + '<div class="page-sub">' + ((hotels && hotels.length) || 0) + ' hôtel(s) configuré(s)</div>'
-        + '</div>'
-        + '</div>';
+  + '<div class="page-header"><div>'
+  + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
+  + '<div class="page-h1">🏨 Hôtel</div>'
+  + '<div class="page-sub">' + ((hotels && hotels.length) || 0) + ' hôtel(s) configuré(s)</div>'
+  + '</div>'
+  + '<button class="btn btn-primary btn-sm" id="hotel-add-btn">+ Ajouter</button>'
+  + '</div>';
   
       if (hotels && hotels.length > 0) {
         h += '<div class="activity-list">';
@@ -374,6 +375,28 @@ const SettingsPage = {
       }
   
       el.innerHTML = h;
+
+      const addBtn = document.getElementById('hotel-add-btn');
+if (addBtn) {
+  addBtn.addEventListener('click', function() {
+    Modal.form('Nouvel hôtel', [
+      { key:'name', label:'Nom', placeholder:'Ex: Mercure Paris Centre' },
+      { key:'city', label:'Ville', placeholder:'Ex: Paris' },
+      { key:'address', label:'Adresse', placeholder:'Ex: 12 rue Exemple' }
+    ], async function(data) {
+      if (!data.name) throw new Error('Nom requis');
+
+      await Api.createHotel({
+        name: data.name,
+        city: data.city || null,
+        address: data.address || null
+      });
+
+      Toast.success('Hôtel ajouté');
+      await SettingsPage._showHotelsManager();
+    });
+  });
+}
   
     } catch (e) {
       el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
