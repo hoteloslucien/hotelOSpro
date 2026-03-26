@@ -29,7 +29,7 @@ const SettingsPage = {
       { icon:'✅', title:'Tâches', sub:'Workflow & statuts', fn:'SettingsPage._showTasksManager()' },
       { icon:'💬', title:'Messagerie', sub:'Canaux & communication', fn:'SettingsPage._showMessagingManager()' },
       { icon:'🔔', title:'Notifications',                  sub:'Alertes & rappels',              fn:"SettingsPage.showModuleInfo('notifications')" },
-      { icon:'📦', title:'Stock',                          sub:'Seuils & catégories',            fn:"SettingsPage.showModuleInfo('stock')" },
+      { icon:'📦', title:'Stock', sub:'Articles & seuils', fn:'SettingsPage._showStockManager()' },
     ].filter(Boolean);
 
     const grid = cards.map(c => `
@@ -518,48 +518,94 @@ const SettingsPage = {
     }
   },
 
-  async _showMessagingManager() {
-    const el = document.getElementById('page-content');
-    if (!el) return;
-  
-    el.innerHTML = Utils.loader();
-  
-    try {
-      const conversations = await Api.conversations();
-  
-      let h = ''
-        + '<div class="page-header"><div>'
-        + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
-        + '<div class="page-h1">💬 Messagerie</div>'
-        + '<div class="page-sub">' + ((conversations && conversations.length) || 0) + ' conversation(s)</div>'
-        + '</div>'
-        + '</div>';
-  
-      if (conversations && conversations.length > 0) {
-        h += '<div class="activity-list">';
-        for (let i = 0; i < conversations.length; i++) {
-          const c = conversations[i];
-          h += ''
-            + '<div class="list-item" data-conv-id="' + c.id + '">'
-            +   '<div class="list-item-icon" style="background:rgba(99,102,241,.12)">💬</div>'
-            +   '<div class="list-item-body">'
-            +     '<div class="list-item-title">' + (c.name || c.title || ('Conversation #' + c.id)) + '</div>'
-            +     '<div class="list-item-sub">' + (c.type || 'Conversation') + '</div>'
-            +   '</div>'
-            + '</div>';
-        }
-        h += '</div>';
-      } else {
-        h += Utils.emptyState('💬', 'Aucune conversation');
-        h += '<div style="margin-top:12px;color:var(--text-2);font-size:13px">Tu pourras créer ou utiliser de vraies conversations ensuite.</div>';
+async _showMessagingManager() {
+  const el = document.getElementById('page-content');
+  if (!el) return;
+
+  el.innerHTML = Utils.loader();
+
+  try {
+    const conversations = await Api.conversations();
+
+    let h = ''
+      + '<div class="page-header"><div>'
+      + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
+      + '<div class="page-h1">💬 Messagerie</div>'
+      + '<div class="page-sub">' + ((conversations && conversations.length) || 0) + ' conversation(s)</div>'
+      + '</div>'
+      + '</div>';
+
+    if (conversations && conversations.length > 0) {
+      h += '<div class="activity-list">';
+      for (let i = 0; i < conversations.length; i++) {
+        const c = conversations[i];
+        h += ''
+          + '<div class="list-item" data-conv-id="' + c.id + '">'
+          +   '<div class="list-item-icon" style="background:rgba(99,102,241,.12)">💬</div>'
+          +   '<div class="list-item-body">'
+          +     '<div class="list-item-title">' + (c.name || c.title || ('Conversation #' + c.id)) + '</div>'
+          +     '<div class="list-item-sub">' + (c.type || 'Conversation') + '</div>'
+          +   '</div>'
+          + '</div>';
       }
-  
-      el.innerHTML = h;
-  
-    } catch (e) {
-      el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+      h += '</div>';
+    } else {
+      h += Utils.emptyState('💬', 'Aucune conversation');
+      h += '<div style="margin-top:12px;color:var(--text-2);font-size:13px">Tu pourras créer ou utiliser de vraies conversations ensuite.</div>';
     }
-  },
+
+    el.innerHTML = h;
+
+  } catch (e) {
+    el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+  }
+},
+
+async _showStockManager() {
+  const el = document.getElementById('page-content');
+  if (!el) return;
+
+  el.innerHTML = Utils.loader();
+
+  try {
+    const items = await (Api.stockItems ? Api.stockItems() : Api.get('/stock'));
+
+    let h = ''
+      + '<div class="page-header"><div>'
+      + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
+      + '<div class="page-h1">📦 Stock</div>'
+      + '<div class="page-sub">' + ((items && items.length) || 0) + ' article(s)</div>'
+      + '</div>'
+      + '</div>';
+
+    if (items && items.length > 0) {
+      h += '<div class="activity-list">';
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        h += ''
+          + '<div class="list-item" data-stock-id="' + item.id + '">'
+          +   '<div class="list-item-icon" style="background:rgba(168,85,247,.12)">📦</div>'
+          +   '<div class="list-item-body">'
+          +     '<div class="list-item-title">' + (item.name || ('Article #' + item.id)) + '</div>'
+          +     '<div class="list-item-sub">'
+          +       + (item.quantity !== undefined && item.quantity !== null ? ('Qté ' + item.quantity) : '')
+          +       + (item.min_quantity !== undefined && item.min_quantity !== null ? ((item.quantity !== undefined && item.quantity !== null ? ' · ' : '') + 'Seuil ' + item.min_quantity) : '')
+          +     '</div>'
+          +   '</div>'
+          + '</div>';
+      }
+      h += '</div>';
+    } else {
+      h += Utils.emptyState('📦', 'Aucun article de stock');
+      h += '<div style="margin-top:12px;color:var(--text-2);font-size:13px">Tu pourras ajouter tes vrais articles ensuite.</div>';
+    }
+
+    el.innerHTML = h;
+
+  } catch (e) {
+    el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
+  }
+},
 
   showModuleInfo(module) {
     if (module === 'notifications') { this._showNotifPrefs(); return; }
