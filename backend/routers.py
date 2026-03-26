@@ -110,14 +110,18 @@ def get_room(room_id: int, db: Session = Depends(get_db),
     if not room: raise HTTPException(404, "Chambre introuvable")
     return room
 
-@rooms_router.patch("/{room_id}", response_model=schemas.RoomOut)
-def update_room(room_id: int, data: schemas.RoomUpdate, db: Session = Depends(get_db),
+s_router.patch("/{room_id}", response_model=schemas.RoomOut)
+def _room(room_id: int, data: schemas.RoomUpdate, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     room = db.query(models.Room).filter(models.Room.id == room_id).first()
     if not room: raise HTTPException(404, "Chambre introuvable")
     old_status = room.status
-    for k, v in data.model_dump(exclude_none=True).items():
+    
+    data_dict = data.model_dump(exclude_none=True)
+
+    for k, v in data_dict.items():
         setattr(room, k, v)
+
     if data.status == "prete":
         room.last_cleaned = datetime.now(timezone.utc)
     # Notify reception when room is blocked by non-reception

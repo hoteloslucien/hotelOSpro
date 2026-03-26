@@ -46,6 +46,7 @@ class RoomCreate(BaseModel):
     notes: Optional[str] = None
 
 class RoomUpdate(BaseModel):
+    number: Optional[str] = None
     status: Optional[str] = None
     is_available: Optional[bool] = None
     notes: Optional[str] = None

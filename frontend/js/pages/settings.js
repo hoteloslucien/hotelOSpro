@@ -487,19 +487,17 @@ if (!data.code) throw new Error('Code requis');
       
           Modal.form('Modifier chambre', [
             { key:'number', label:'Numéro', value: room.number || '', placeholder:'Ex: 101' },
-            { key:'name', label:'Nom (optionnel)', value: room.name || '', placeholder:'Ex: Suite 101' },
             { key:'floor', label:'Étage (optionnel)', value: room.floor != null ? String(room.floor) : '', placeholder:'Ex: 1' },
             { key:'status', label:'Statut (optionnel)', value: room.status || '', placeholder:'Ex: disponible' }
           ], async function(data) {
             if (!data.number) throw new Error('Numéro requis');
-      
+          
             await Api.updateRoom(id, {
               number: data.number,
-              name: data.name || null,
               floor: data.floor ? parseInt(data.floor, 10) : null,
               status: data.status || null
             });
-      
+          
             Toast.success('Chambre modifiée');
             await SettingsPage._showRoomsManager();
           });
