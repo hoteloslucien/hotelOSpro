@@ -110,15 +110,14 @@ def get_room(room_id: int, db: Session = Depends(get_db),
     if not room: raise HTTPException(404, "Chambre introuvable")
     return room
 
-s_router.patch("/{room_id}", response_model=schemas.RoomOut)
-def _room(room_id: int, data: schemas.RoomUpdate, db: Session = Depends(get_db),
+@rooms_router.patch("/{room_id}", response_model=schemas.RoomOut)
+def update_room(room_id: int, data: schemas.RoomUpdate, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     room = db.query(models.Room).filter(models.Room.id == room_id).first()
     if not room: raise HTTPException(404, "Chambre introuvable")
     old_status = room.status
     
     data_dict = data.model_dump(exclude_none=True)
-
     for k, v in data_dict.items():
         setattr(room, k, v)
 
