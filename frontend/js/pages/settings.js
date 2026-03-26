@@ -459,16 +459,17 @@ if (!data.code) throw new Error('Code requis');
         for (let i = 0; i < rooms.length; i++) {
           const room = rooms[i];
           h += ''
-            + '<div class="list-item" data-room-id="' + room.id + '">'
-            +   '<div class="list-item-icon" style="background:rgba(16,185,129,.12)">🛏️</div>'
-            +   '<div class="list-item-body">'
-            +     '<div class="list-item-title">' + (room.number || room.name || ('Chambre #' + room.id)) + '</div>'
-            +     '<div class="list-item-sub">'
-            +       + (room.floor ? ('Étage ' + room.floor) : '')
-            +       + (room.status ? ((room.floor ? ' · ' : '') + room.status) : '')
-            +     '</div>'
-            +   '</div>'
-            + '</div>';
+  + '<div class="list-item" data-room-id="' + room.id + '">'
+  +   '<div class="list-item-icon" style="background:rgba(16,185,129,.12)">🛏️</div>'
+  +   '<div class="list-item-body">'
+  +     '<div class="list-item-title">' + (room.number || room.name || ('Chambre #' + room.id)) + '</div>'
+  +     '<div class="list-item-sub">'
+  +       + (room.floor ? ('Étage ' + room.floor) : '')
+  +       + (room.status ? ((room.floor ? ' · ' : '') + room.status) : '')
+  +     '</div>'
+  +   '</div>'
+  +   '<button class="btn btn-sm" data-room-edit="' + room.id + '">Modifier</button>'
+  + '</div>';
         }
         h += '</div>';
       } else {
@@ -477,6 +478,34 @@ if (!data.code) throw new Error('Code requis');
       }
   
       el.innerHTML = h;
+
+      el.querySelectorAll('[data-room-edit]').forEach(function(b) {
+        b.addEventListener('click', function() {
+          const id = parseInt(b.dataset.roomEdit, 10);
+          const room = (rooms || []).find(x => x.id === id);
+          if (!room) return;
+      
+          Modal.form('Modifier chambre', [
+            { key:'number', label:'Numéro', value: room.number || '', placeholder:'Ex: 101' },
+            { key:'name', label:'Nom (optionnel)', value: room.name || '', placeholder:'Ex: Suite 101' },
+            { key:'floor', label:'Étage (optionnel)', value: room.floor != null ? String(room.floor) : '', placeholder:'Ex: 1' },
+            { key:'status', label:'Statut (optionnel)', value: room.status || '', placeholder:'Ex: disponible' }
+          ], async function(data) {
+            if (!data.number) throw new Error('Numéro requis');
+      
+            await Api.updateRoom(id, {
+              number: data.number,
+              name: data.name || null,
+              floor: data.floor ? parseInt(data.floor, 10) : null,
+              status: data.status || null
+            });
+      
+            Toast.success('Chambre modifiée');
+            await SettingsPage._showRoomsManager();
+          });
+        });
+      });
+      
 
       const addBtn = document.getElementById('room-add-btn');
 if (addBtn) {
