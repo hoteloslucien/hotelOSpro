@@ -381,13 +381,17 @@ if (addBtn) {
   addBtn.addEventListener('click', function() {
     Modal.form('Nouvel hôtel', [
       { key:'name', label:'Nom', placeholder:'Ex: Mercure Paris Centre' },
+      { key:'code', label:'Code', placeholder:'Ex: MERCURE_PARIS' },
       { key:'city', label:'Ville', placeholder:'Ex: Paris' },
       { key:'address', label:'Adresse', placeholder:'Ex: 12 rue Exemple' }
     ], async function(data) {
       if (!data.name) throw new Error('Nom requis');
+      if (!data.name) throw new Error('Nom requis');
+if (!data.code) throw new Error('Code requis');
 
       await Api.createHotel({
         name: data.name,
+        code: data.code,
         city: data.city || null,
         address: data.address || null
       });
