@@ -15,6 +15,14 @@ class HotelOut(BaseModel):
 class HotelCreate(BaseModel):
     name:str; code:str; address:Optional[str]=None; city:Optional[str]=None; country:str="France"
     phone:Optional[str]=None; email:Optional[str]=None
+
+class HotelUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    is_active: Optional[bool] = None
+
 class ZoneOut(BaseModel):
     id:int; name:str; code:Optional[str]; hotel_id:int; is_active:bool; created_at:datetime
     class Config: from_attributes=True
@@ -38,6 +46,25 @@ def list_hotels(db:Session=Depends(get_db),_:models.User=Depends(get_current_use
 def create_hotel(d:HotelCreate,db:Session=Depends(get_db),me:models.User=Depends(require_roles("direction"))):
     h=models.Hotel(**d.model_dump()); db.add(h); db.flush()
     log_audit(db,me.id,h.id,"create","hotel",h.id); db.commit(); db.refresh(h); return h
+@hotels_router.patch("/{hotel_id}", response_model=HotelOut)
+def update_hotel(
+    hotel_id: int,
+    d: HotelUpdate,
+    db: Session = Depends(get_db),
+    me: models.User = Depends(require_roles("direction"))
+):
+    h = db.query(models.Hotel).filter(models.Hotel.id == hotel_id).first()
+    if not h:
+        raise HTTPException(status_code=404, detail="Hôtel introuvable")
+
+    data = d.model_dump(exclude_none=True)
+    for k, v in data.items():
+        setattr(h, k, v)
+
+    db.commit()
+    db.refresh(h)
+    log_audit(db, me.id, h.id, "update", "hotel", h.id, str(data))
+    return h
 
 class ZoneUpdate(BaseModel):
     name:Optional[str]=None; code:Optional[str]=None; is_active:Optional[bool]=None

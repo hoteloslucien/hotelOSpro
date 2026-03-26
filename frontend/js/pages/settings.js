@@ -360,13 +360,14 @@ const SettingsPage = {
         for (let i = 0; i < hotels.length; i++) {
           const hotel = hotels[i];
           h += ''
-            + '<div class="list-item" data-hotel-id="' + hotel.id + '">'
-            +   '<div class="list-item-icon" style="background:rgba(59,130,246,.12)">🏨</div>'
-            +   '<div class="list-item-body">'
-            +     '<div class="list-item-title">' + (hotel.name || 'Hôtel sans nom') + '</div>'
-            +     '<div class="list-item-sub">' + ((hotel.city || '') + (hotel.address ? ' · ' + hotel.address : '')) + '</div>'
-            +   '</div>'
-            + '</div>';
+  + '<div class="list-item" data-hotel-id="' + hotel.id + '">'
+  +   '<div class="list-item-icon" style="background:rgba(59,130,246,.12)">🏨</div>'
+  +   '<div class="list-item-body">'
+  +     '<div class="list-item-title">' + (hotel.name || 'Hôtel sans nom') + '</div>'
+  +     '<div class="list-item-sub">' + ((hotel.city || '') + (hotel.address ? ' · ' + hotel.address : '')) + '</div>'
+  +   '</div>'
+  +   '<button class="btn btn-sm" data-hotel-edit="' + hotel.id + '">Modifier</button>'
+  + '</div>';
         }
         h += '</div>';
       } else {
@@ -375,6 +376,34 @@ const SettingsPage = {
       }
   
       el.innerHTML = h;
+
+      el.querySelectorAll('[data-hotel-edit]').forEach(function(b) {
+        b.addEventListener('click', function() {
+          const id = parseInt(b.dataset.hotelEdit, 10);
+          const hotel = (hotels || []).find(x => x.id === id);
+          if (!hotel) return;
+      
+          Modal.form('Modifier hôtel', [
+            { key:'name', label:'Nom', value: hotel.name || '', placeholder:'Ex: Mercure Paris Centre' },
+            { key:'code', label:'Code', value: hotel.code || '', placeholder:'Ex: MERCURE_PARIS' },
+            { key:'city', label:'Ville', value: hotel.city || '', placeholder:'Ex: Paris' },
+            { key:'address', label:'Adresse', value: hotel.address || '', placeholder:'Ex: 12 rue Exemple' }
+          ], async function(data) {
+            if (!data.name) throw new Error('Nom requis');
+            if (!data.code) throw new Error('Code requis');
+      
+            await Api.updateHotel(id, {
+              name: data.name,
+              code: data.code,
+              city: data.city || null,
+              address: data.address || null
+            });
+      
+            Toast.success('Hôtel modifié');
+            await SettingsPage._showHotelsManager();
+          });
+        });
+      });
 
       const addBtn = document.getElementById('hotel-add-btn');
 if (addBtn) {
