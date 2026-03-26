@@ -446,12 +446,13 @@ if (!data.code) throw new Error('Code requis');
       const rooms = await Api.rooms();
   
       let h = ''
-        + '<div class="page-header"><div>'
-        + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
-        + '<div class="page-h1">🛏️ Chambres</div>'
-        + '<div class="page-sub">' + ((rooms && rooms.length) || 0) + ' chambre(s) configurée(s)</div>'
-        + '</div>'
-        + '</div>';
+  + '<div class="page-header"><div>'
+  + '<button class="btn btn-secondary btn-sm" onclick="SettingsPage.render()" style="margin-bottom:8px">← Réglages</button>'
+  + '<div class="page-h1">🛏️ Chambres</div>'
+  + '<div class="page-sub">' + ((rooms && rooms.length) || 0) + ' chambre(s) configurée(s)</div>'
+  + '</div>'
+  + '<button class="btn btn-primary btn-sm" id="room-add-btn">+ Ajouter</button>'
+  + '</div>';
   
       if (rooms && rooms.length > 0) {
         h += '<div class="activity-list">';
@@ -476,6 +477,32 @@ if (!data.code) throw new Error('Code requis');
       }
   
       el.innerHTML = h;
+
+      const addBtn = document.getElementById('room-add-btn');
+if (addBtn) {
+  addBtn.addEventListener('click', function() {
+    Modal.form('Nouvelle chambre', [
+      { key:'number', label:'Numéro', placeholder:'Ex: 101' },
+      { key:'name', label:'Nom (optionnel)', placeholder:'Ex: Suite 101' },
+      { key:'floor', label:'Étage (optionnel)', placeholder:'Ex: 1' },
+      { key:'status', label:'Statut (optionnel)', placeholder:'Ex: disponible' }
+    ], async function(data) {
+      if (!data.number) throw new Error('Numéro requis');
+
+      const payload = {
+        number: data.number,
+        name: data.name || null,
+        floor: data.floor ? parseInt(data.floor, 10) : null,
+        status: data.status || null
+      };
+
+      await Api.createRoom(payload);
+
+      Toast.success('Chambre ajoutée');
+      await SettingsPage._showRoomsManager();
+    });
+  });
+}
   
     } catch (e) {
       el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>';
