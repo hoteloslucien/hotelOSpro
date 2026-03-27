@@ -11,6 +11,12 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI
+from routers_settings import settings_router
+
+app = FastAPI()
+
+app.include_router(settings_router, prefix="/settings")
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
