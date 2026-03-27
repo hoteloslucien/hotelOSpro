@@ -15,7 +15,7 @@ from  .routers_settings import settings_router
 
 app = FastAPI()
 
-app.include_router(settings_router, prefix="/settings")
+app.include_router(settings_router)
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
