@@ -24,7 +24,7 @@ class EquipmentStatus(str, enum.Enum):
 class Hotel(Base):
     __tablename__="hotels"
     id=Column(Integer,primary_key=True,index=True); name=Column(String(150),nullable=False)
-    code=Column(String(20),unique=True,nullable=False); address=Column(Text,nullable=True)
+    code=Column(String(100),unique=True,nullable=False); address=Column(Text,nullable=True)
     city=Column(String(100),nullable=True); country=Column(String(60),default="France")
     brand=Column(String(100),nullable=True)
     phone=Column(String(100),nullable=True); email=Column(String(150),nullable=True)
