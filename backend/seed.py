@@ -50,6 +50,8 @@ def run():
             ("equipment", "create", "Créer un équipement"),
             ("equipment", "update", "Modifier un équipement"),
             ("equipment", "delete", "Supprimer un équipement"),
+            ("equipment", "manage_families", "Gérer les familles d'équipements"),
+            ("equipment", "manage_types", "Gérer les types d'équipements"),
             ("notifications", "view", "Voir les notifications"),
             ("stock", "view", "Voir le stock"),
             ("stock", "create", "Créer un article de stock"),

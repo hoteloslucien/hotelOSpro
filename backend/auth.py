@@ -19,6 +19,13 @@ ALGORITHM = "HS256"
 ACCESS_EXPIRE_MIN = 1440  # 24h — confortable pour démo/terrain
 REFRESH_EXPIRE_DAYS = 30
 
+if SECRET_KEY == "hotel-os-dev-secret-change-in-prod":
+    import warnings
+    warnings.warn(
+        "⚠️  SECRET_KEY par défaut détectée — définissez la variable d'environnement SECRET_KEY avant tout déploiement en production.",
+        stacklevel=2,
+    )
+
 # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
 

@@ -22,6 +22,7 @@ class UserOut(BaseModel):
     email: str
     role: str
     service: Optional[str]
+    hotel_id: Optional[int]
     is_active: bool
     created_at: datetime
     class Config:
@@ -44,6 +45,7 @@ class RoomCreate(BaseModel):
     floor: int = 1
     type: str = "standard"
     notes: Optional[str] = None
+    zone_id: Optional[int] = None
 
 class RoomUpdate(BaseModel):
     number: Optional[str] = None
@@ -52,6 +54,7 @@ class RoomUpdate(BaseModel):
     notes: Optional[str] = None
     floor: Optional[int] = None
     type: Optional[str] = None
+    zone_id: Optional[int] = None
 
 class RoomOut(BaseModel):
     id: int
@@ -63,6 +66,8 @@ class RoomOut(BaseModel):
     notes: Optional[str]
     last_cleaned: Optional[datetime]
     qr_token: Optional[str]
+    hotel_id: Optional[int]
+    zone_id: Optional[int]
     created_at: datetime
     updated_at: Optional[datetime]
     class Config:
@@ -85,6 +90,8 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[str] = None
     priority: Optional[str] = None
+    service: Optional[str] = None
+    room_id: Optional[int] = None
     assigned_to_id: Optional[int] = None
     pause_reason: Optional[str] = None
     validation_note: Optional[str] = None
@@ -102,6 +109,7 @@ class TaskOut(BaseModel):
     validated_at: Optional[datetime]
     pause_reason: Optional[str]
     validation_note: Optional[str]
+    hotel_id: Optional[int]
     room_id: Optional[int]
     assigned_to_id: Optional[int]
     created_by_id: int
@@ -141,6 +149,7 @@ class InterventionOut(BaseModel):
     cost: float
     resolution_note: Optional[str]
     photo_url: Optional[str]
+    hotel_id: Optional[int]
     room_id: Optional[int]
     taken_by_id: Optional[int]
     created_by_id: Optional[int]
@@ -403,6 +412,8 @@ class StockItemOut(BaseModel):
     threshold_min: float
     location: Optional[str]
     unit_cost: float
+    hotel_id: Optional[int]
+    is_active: bool = True
     created_at: datetime
     class Config:
         from_attributes = True
@@ -460,3 +471,143 @@ class NotificationOut(BaseModel):
 
 class NotificationMarkRead(BaseModel):
     notification_ids: List[int]
+
+
+# ── StockItemUpdate ────────────────────────────────────────────────────────────
+
+class StockItemUpdate(BaseModel):
+    name: Optional[str] = None
+    reference: Optional[str] = None
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    threshold_min: Optional[float] = None
+    location: Optional[str] = None
+    unit_cost: Optional[float] = None
+    is_active: Optional[bool] = None
+
+
+# ── Hotel enrichi ─────────────────────────────────────────────────────────────
+
+class HotelFullUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    brand: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    logo_url: Optional[str] = None
+    timezone: Optional[str] = None
+    language: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+# ── Zone enrichie ─────────────────────────────────────────────────────────────
+
+class ZoneFullCreate(BaseModel):
+    name: str
+    code: Optional[str] = None
+    type: Optional[str] = None
+    hotel_id: int
+    parent_id: Optional[int] = None
+    description: Optional[str] = None
+
+class ZoneOut(BaseModel):
+    id: int
+    name: str
+    code: Optional[str]
+    type: Optional[str]
+    hotel_id: int
+    parent_id: Optional[int]
+    is_active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+# ── TaskCategory ──────────────────────────────────────────────────────────────
+
+class TaskCategoryCreate(BaseModel):
+    name: str
+    code: Optional[str] = None
+    color: Optional[str] = None
+
+class TaskCategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    color: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class TaskCategoryOut(BaseModel):
+    id: int
+    hotel_id: int
+    name: str
+    code: Optional[str]
+    color: Optional[str]
+    is_active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+# ── InterventionType ──────────────────────────────────────────────────────────
+
+class InterventionTypeCreate(BaseModel):
+    name: str
+    code: Optional[str] = None
+    default_priority: str = "normale"
+
+class InterventionTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    default_priority: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class InterventionTypeOut(BaseModel):
+    id: int
+    hotel_id: int
+    name: str
+    code: Optional[str]
+    default_priority: str
+    is_active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+# ── Equipment Familles / Types — Create/Update ─────────────────────────────────
+
+class EquipmentFamilyCreate(BaseModel):
+    code: str
+    name: str
+    sort_order: int = 0
+    hotel_id: Optional[int] = None
+
+class EquipmentFamilyUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    sort_order: Optional[int] = None
+
+class EquipmentTypeCreate(BaseModel):
+    family_id: int
+    code: str
+    name: str
+    is_active: bool = True
+
+class EquipmentTypeUpdate(BaseModel):
+    family_id: Optional[int] = None
+    code: Optional[str] = None
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+# ── UserUpdate ────────────────────────────────────────────────────────────────
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
+    service: Optional[str] = None
+    is_active: Optional[bool] = None
+    hotel_id: Optional[int] = None

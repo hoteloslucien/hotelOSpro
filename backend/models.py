@@ -26,15 +26,21 @@ class Hotel(Base):
     id=Column(Integer,primary_key=True,index=True); name=Column(String(150),nullable=False)
     code=Column(String(20),unique=True,nullable=False); address=Column(Text,nullable=True)
     city=Column(String(100),nullable=True); country=Column(String(60),default="France")
+    brand=Column(String(100),nullable=True)
     phone=Column(String(30),nullable=True); email=Column(String(150),nullable=True)
-    timezone=Column(String(50),default="Europe/Paris"); is_active=Column(Boolean,default=True)
+    logo_url=Column(String(300),nullable=True)
+    timezone=Column(String(50),default="Europe/Paris")
+    language=Column(String(10),default="fr")
+    is_active=Column(Boolean,default=True)
     created_at=Column(DateTime(timezone=True),server_default=func.now())
+    updated_at=Column(DateTime(timezone=True),onupdate=func.now())
     zones=relationship("Zone",back_populates="hotel"); services=relationship("Service",back_populates="hotel")
 
 class Zone(Base):
     __tablename__="zones"
     id=Column(Integer,primary_key=True,index=True); name=Column(String(100),nullable=False)
-    code=Column(String(30),nullable=True); parent_id=Column(Integer,ForeignKey("zones.id"),nullable=True)
+    code=Column(String(30),nullable=True); type=Column(String(30),nullable=True)  # zone, lieu, etage, secteur, batiment, aile
+    parent_id=Column(Integer,ForeignKey("zones.id"),nullable=True)
     hotel_id=Column(Integer,ForeignKey("hotels.id"),nullable=False)
     description=Column(Text,nullable=True); is_active=Column(Boolean,default=True)
     created_at=Column(DateTime(timezone=True),server_default=func.now())
@@ -236,6 +242,7 @@ class StockItem(Base):
     unit=Column(String(20),default="unite"); quantity=Column(Float,default=0.0)
     threshold_min=Column(Float,default=5.0); location=Column(String(100),nullable=True); unit_cost=Column(Float,default=0.0)
     hotel_id=Column(Integer,ForeignKey("hotels.id"),nullable=True)
+    is_active=Column(Boolean,default=True,nullable=False)
     created_at=Column(DateTime(timezone=True),server_default=func.now()); updated_at=Column(DateTime(timezone=True),onupdate=func.now())
     movements=relationship("StockMovement",back_populates="item")
     @property
@@ -323,3 +330,39 @@ class Notification(Base):
     read_at=Column(DateTime(timezone=True),nullable=True)
     created_at=Column(DateTime(timezone=True),server_default=func.now())
     user=relationship("User")
+
+# ═══ RÉFÉRENTIELS MÉTIER V2 ═══
+
+class TaskCategory(Base):
+    __tablename__ = "task_categories"
+    id = Column(Integer, primary_key=True, index=True)
+    hotel_id = Column(Integer, ForeignKey("hotels.id"), nullable=False)
+    name = Column(String(100), nullable=False)
+    code = Column(String(30), nullable=True)
+    color = Column(String(7), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    hotel = relationship("Hotel")
+
+class InterventionType(Base):
+    __tablename__ = "intervention_types"
+    id = Column(Integer, primary_key=True, index=True)
+    hotel_id = Column(Integer, ForeignKey("hotels.id"), nullable=False)
+    name = Column(String(100), nullable=False)
+    code = Column(String(30), nullable=True)
+    default_priority = Column(String(10), default="normale")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    hotel = relationship("Hotel")
+
+class NotificationPreference(Base):
+    __tablename__ = "notification_preferences"
+    id = Column(Integer, primary_key=True, index=True)
+    hotel_id = Column(Integer, ForeignKey("hotels.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    type = Column(String(50), nullable=False)
+    enabled = Column(Boolean, default=True)
+    channel = Column(String(20), default="app")
+    priority = Column(String(10), default="medium")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    user = relationship("User")

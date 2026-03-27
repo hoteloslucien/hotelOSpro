@@ -136,17 +136,22 @@ const Api = {
   updateReview: function(id,d) { return Api.patch('/reviews/' + id, d); },
 
   // ── Equipment V2 ──────────────────────────────────────────────
-  equipmentFamilies:   function()      { return Api.get('/equipment/families'); },
-  equipmentTypes:      function(p)     { return Api.get('/equipment/types' + Api._qs(p || {})); },
-  equipmentItems:      function(p)     { return Api.get('/equipment/items' + Api._qs(p || {})); },
-  createEquipmentItem: function(d)     { return Api.post('/equipment/items', d); },
-  updateEquipmentItem: function(id,d)  { return Api.patch('/equipment/items/' + id, d); },
-  deleteEquipmentItem: function(id)    { return Api.del('/equipment/items/' + id); },
+  equipmentFamilies:      function()      { return Api.get('/equipment/families'); },
+  equipmentTypes:         function(p)     { return Api.get('/equipment/types' + Api._qs(p || {})); },
+  equipmentItems:         function(p)     { return Api.get('/equipment/items' + Api._qs(p || {})); },
+  createEquipmentItem:    function(d)     { return Api.post('/equipment/items', d); },
+  updateEquipmentItem:    function(id,d)  { return Api.patch('/equipment/items/' + id, d); },
+  deleteEquipmentItem:    function(id)    { return Api.del('/equipment/items/' + id); },
+  // Familles et types via /settings
+  createEquipmentFamily:  function(d)     { return Api.post('/settings/equipment-families', d); },
+  updateEquipmentFamily:  function(id,d)  { return Api.patch('/settings/equipment-families/' + id, d); },
+  createEquipmentType:    function(d)     { return Api.post('/settings/equipment-types', d); },
+  updateEquipmentType:    function(id,d)  { return Api.patch('/settings/equipment-types/' + id, d); },
 
   // ── Stock ─────────────────────────────────────────────────────
   stockItems:      function(low) { return Api.get('/stock/items' + (low ? '?low_only=true' : '')); },
   createStockItem: function(d)   { return Api.post('/stock/items', d); },
-  stockMovements:  function(iid) { return Api.get('/s:tock/movements' + (iid ? '?item_id=' + iid : '')); },
+  stockMovements:  function(iid) { return Api.get('/stock/movements' + (iid ? '?item_id=' + iid : '')); },
   addMovement:     function(d)   { return Api.post('/stock/movements', d); },
 
   // ── Users ─────────────────────────────────────────────────────
@@ -161,17 +166,30 @@ const Api = {
   attendanceStats:         function(p) { return Api.get('/attendance/stats' + Api._qs(p || {})); },
 
   // ── Socle ─────────────────────────────────────────────────────
-  hotels:     function()  { return Api.get('/hotels'); },
-  createHotel: function(d) { return Api.post('/hotels/', d); },
-  updateHotel: function(id, d) { return Api.patch('/hotels/' + id, d); },
-  rooms:      function() { return Api.get('/rooms'); },
-  interventions: function() { return Api.get('/interventions'); },
-  zones:      function(p) { return Api.get('/zones' + Api._qs(p || {})); },
-  createZone: function(d) { return Api.post('/zones', d); },
-  updateZone: function(id,d) { return Api.patch('/zones/' + id, d); },
-  deleteZone: function(id) { return Api.del('/zones/' + id); },
-  services:   function(p) { return Api.get('/services' + Api._qs(p || {})); },
-  auditLogs:  function(p) { return Api.get('/audit' + Api._qs(p || {})); },
+  hotels:          function()      { return Api.get('/hotels'); },
+  hotelsAll:       function()      { return Api.get('/hotels?include_inactive=true'); },
+  createHotel:     function(d)     { return Api.post('/hotels/', d); },
+  updateHotel:     function(id, d) { return Api.patch('/hotels/' + id, d); },
+  disableHotel:    function(id)    { return Api.patch('/hotels/' + id + '/disable', {}); },
+  reactivateHotel: function(id)    { return Api.patch('/hotels/' + id + '/reactivate', {}); },
+  // NB: rooms() et interventions() déjà définis plus haut avec filtres — pas de doublon ici
+  deleteRoom:  function(id)    { return Api.del('/rooms/' + id); },
+  zones:       function(p)     { return Api.get('/zones' + Api._qs(p || {})); },
+  createZone:  function(d)     { return Api.post('/zones', d); },
+  updateZone:  function(id,d)  { return Api.patch('/zones/' + id, d); },
+  deleteZone:  function(id)    { return Api.del('/zones/' + id); },
+  services:    function(p)     { return Api.get('/services' + Api._qs(p || {})); },
+  auditLogs:   function(p)     { return Api.get('/audit' + Api._qs(p || {})); },
+  updateStockItem: function(id,d) { return Api.patch('/stock/items/' + id, d); },
+  deleteStockItem: function(id)   { return Api.del('/stock/items/' + id); },
+  taskCategories:      function()      { return Api.get('/settings/task-categories'); },
+  createTaskCategory:  function(d)     { return Api.post('/settings/task-categories', d); },
+  updateTaskCategory:  function(id,d)  { return Api.patch('/settings/task-categories/' + id, d); },
+  deleteTaskCategory:  function(id)    { return Api.del('/settings/task-categories/' + id); },
+  interventionTypes:      function()      { return Api.get('/settings/intervention-types'); },
+  createInterventionType: function(d)     { return Api.post('/settings/intervention-types', d); },
+  updateInterventionType: function(id,d)  { return Api.patch('/settings/intervention-types/' + id, d); },
+  deleteInterventionType: function(id)    { return Api.del('/settings/intervention-types/' + id); },
 
   // ── Rôles ─────────────────────────────────────────────────────
   roles:              function()     { return Api.get('/roles'); },

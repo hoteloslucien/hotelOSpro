@@ -38,10 +38,6 @@ def register(data: schemas.UserCreate, db: Session = Depends(get_db),
 def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == data.email).first()
 
-    print("LOGIN email =", data.email)
-    print("LOGIN password len =", len(data.password))
-    print("LOGIN hash prefix =", user.password_hash[:4] if user and user.password_hash else None)
-
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(401, "Identifiants incorrects")
     if not user.is_active:
@@ -87,19 +83,22 @@ rooms_router = APIRouter(prefix="/rooms", tags=["Chambres"])
 @rooms_router.get("", response_model=List[schemas.RoomOut])
 def list_rooms(floor: Optional[int] = None, status: Optional[str] = None,
                db: Session = Depends(get_db),
-               _: models.User = Depends(get_current_user)):
+               current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     q = db.query(models.Room)
+    if active_hotel: q = q.filter(models.Room.hotel_id == active_hotel)
     if floor:  q = q.filter(models.Room.floor == floor)
     if status: q = q.filter(models.Room.status == status)
     return q.order_by(models.Room.number).all()
 
 @rooms_router.post("", response_model=schemas.RoomOut, status_code=201)
 def create_room(data: schemas.RoomCreate, db: Session = Depends(get_db),
-                _: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
-    if db.query(models.Room).filter(models.Room.number == data.number).first():
-        raise HTTPException(400, "Numéro de chambre déjà existant")
+                current_user: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    if db.query(models.Room).filter(models.Room.number == data.number, models.Room.hotel_id == active_hotel).first():
+        raise HTTPException(400, "Numéro de chambre déjà existant pour cet hôtel")
     token = secrets.token_urlsafe(32)
-    room = models.Room(**data.model_dump(), qr_token=token)
+    room = models.Room(**data.model_dump(), qr_token=token, hotel_id=active_hotel)
     db.add(room); db.commit(); db.refresh(room)
     return room
 
@@ -140,6 +139,13 @@ def get_qr_token(room_id: int, db: Session = Depends(get_db),
     if not room: raise HTTPException(404, "Chambre introuvable")
     return {"room_number": room.number, "token": room.qr_token}
 
+@rooms_router.delete("/{room_id}", status_code=204)
+def delete_room(room_id: int, db: Session = Depends(get_db),
+                _: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+    room = db.query(models.Room).filter(models.Room.id == room_id).first()
+    if not room: raise HTTPException(404, "Chambre introuvable")
+    db.delete(room); db.commit()
+
 
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
@@ -148,18 +154,21 @@ tasks_router = APIRouter(prefix="/tasks", tags=["Tâches"])
 @tasks_router.get("", response_model=List[schemas.TaskOut])
 def list_tasks(status: Optional[str] = None, priority: Optional[str] = None,
                assigned_to_id: Optional[int] = None, service: Optional[str] = None,
-               db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
+               db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     q = db.query(models.Task)
-    if status:         q = q.filter(models.Task.status == status)
-    if priority:       q = q.filter(models.Task.priority == priority)
-    if assigned_to_id: q = q.filter(models.Task.assigned_to_id == assigned_to_id)
-    if service:        q = q.filter(models.Task.service == service)
+    if active_hotel:     q = q.filter(models.Task.hotel_id == active_hotel)
+    if status:           q = q.filter(models.Task.status == status)
+    if priority:         q = q.filter(models.Task.priority == priority)
+    if assigned_to_id:   q = q.filter(models.Task.assigned_to_id == assigned_to_id)
+    if service:          q = q.filter(models.Task.service == service)
     return q.order_by(models.Task.created_at.desc()).all()
 
 @tasks_router.post("", response_model=schemas.TaskOut, status_code=201)
 def create_task(data: schemas.TaskCreate, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
-    task = models.Task(**data.model_dump(), created_by_id=current_user.id)
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    task = models.Task(**data.model_dump(), created_by_id=current_user.id, hotel_id=active_hotel)
     db.add(task); db.commit(); db.refresh(task)
     return task
 
@@ -200,8 +209,10 @@ interventions_router = APIRouter(prefix="/interventions", tags=["Interventions"]
 @interventions_router.get("", response_model=List[schemas.InterventionOut])
 def list_interventions(status: Optional[str] = None, priority: Optional[str] = None,
                        room_id: Optional[int] = None,
-                       db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
+                       db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     q = db.query(models.Intervention)
+    if active_hotel: q = q.filter(models.Intervention.hotel_id == active_hotel)
     if status:  q = q.filter(models.Intervention.status == status)
     if priority:q = q.filter(models.Intervention.priority == priority)
     if room_id: q = q.filter(models.Intervention.room_id == room_id)
@@ -210,16 +221,16 @@ def list_interventions(status: Optional[str] = None, priority: Optional[str] = N
 @interventions_router.post("", response_model=schemas.InterventionOut, status_code=201)
 def create_intervention(data: schemas.InterventionCreate, db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
-    inv = models.Intervention(**data.model_dump(), created_by_id=current_user.id)
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    inv = models.Intervention(**data.model_dump(), created_by_id=current_user.id, hotel_id=active_hotel)
     db.add(inv); db.commit(); db.refresh(inv)
-    # Notifications
     prio = "critical" if data.priority == "urgente" else "high" if data.priority == "haute" else "medium"
     ntype = "intervention_urgent" if data.priority == "urgente" else "intervention_created"
-    notify_role(db, "responsable", hotel_id=current_user.hotel_id, type=ntype,
+    notify_role(db, "responsable", hotel_id=active_hotel, type=ntype,
                 title="Nouvelle intervention" + (" urgente" if data.priority == "urgente" else ""),
                 message=inv.title, entity_type="intervention", entity_id=inv.id,
                 priority=prio, exclude_user_id=current_user.id)
-    notify_role(db, "direction", hotel_id=current_user.hotel_id, type=ntype,
+    notify_role(db, "direction", hotel_id=active_hotel, type=ntype,
                 title="Nouvelle intervention" + (" urgente" if data.priority == "urgente" else ""),
                 message=inv.title, entity_type="intervention", entity_id=inv.id,
                 priority=prio, exclude_user_id=current_user.id)
@@ -350,14 +361,19 @@ def unmark_duplicate(inv_id: int, db: Session = Depends(get_db),
 rounds_router = APIRouter(prefix="/rounds", tags=["Tournées"])
 
 @rounds_router.get("", response_model=List[schemas.RoundOut])
-def list_rounds(db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
-    return db.query(models.Round).order_by(models.Round.date.desc()).all()
+def list_rounds(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    q = db.query(models.Round)
+    if active_hotel: q = q.filter(models.Round.hotel_id == active_hotel)
+    return q.order_by(models.Round.date.desc()).all()
 
 @rounds_router.post("", response_model=schemas.RoundOut, status_code=201)
 def create_round(data: schemas.RoundCreate, db: Session = Depends(get_db),
-                 _: models.User = Depends(require_roles("gouvernante","responsable","direction"))):
+                 current_user: models.User = Depends(require_roles("gouvernante","responsable","direction"))):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     rooms_data = data.rooms
     round_dict = data.model_dump(exclude={"rooms"})
+    round_dict["hotel_id"] = active_hotel
     rnd = models.Round(**round_dict)
     db.add(rnd); db.flush()
     for r in rooms_data:
@@ -457,8 +473,10 @@ reviews_router = APIRouter(prefix="/reviews", tags=["Avis clients"])
 
 @reviews_router.get("", response_model=List[schemas.ReviewOut])
 def list_reviews(status: Optional[str] = None, db: Session = Depends(get_db),
-                 _: models.User = Depends(get_current_user)):
+                 current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     q = db.query(models.ClientReview)
+    if active_hotel: q = q.filter(models.ClientReview.hotel_id == active_hotel)
     if status: q = q.filter(models.ClientReview.status == status)
     return q.order_by(models.ClientReview.created_at.desc()).all()
 
@@ -584,24 +602,47 @@ stock_router = APIRouter(prefix="/stock", tags=["Stock"])
 
 @stock_router.get("/items", response_model=List[schemas.StockItemOut])
 def list_stock(low_only: bool = False, db: Session = Depends(get_db),
-               _: models.User = Depends(get_current_user)):
-    items = db.query(models.StockItem).order_by(models.StockItem.name).all()
+               current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    q = db.query(models.StockItem)
+    if active_hotel: q = q.filter(models.StockItem.hotel_id == active_hotel)
+    items = q.order_by(models.StockItem.name).all()
     if low_only:
         items = [i for i in items if i.quantity <= i.threshold_min]
     return items
 
 @stock_router.post("/items", response_model=schemas.StockItemOut, status_code=201)
 def create_stock_item(data: schemas.StockItemCreate, db: Session = Depends(get_db),
-                      _: models.User = Depends(get_current_user)):
-    item = models.StockItem(**data.model_dump())
+                      current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    item = models.StockItem(**data.model_dump(), hotel_id=active_hotel)
     db.add(item); db.commit(); db.refresh(item)
     return item
+
+@stock_router.patch("/items/{item_id}", response_model=schemas.StockItemOut)
+def update_stock_item(item_id: int, data: schemas.StockItemUpdate, db: Session = Depends(get_db),
+                      _: models.User = Depends(get_current_user)):
+    item = db.query(models.StockItem).filter(models.StockItem.id == item_id).first()
+    if not item: raise HTTPException(404, "Article introuvable")
+    for k, v in data.model_dump(exclude_none=True).items():
+        setattr(item, k, v)
+    db.commit(); db.refresh(item)
+    return item
+
+@stock_router.delete("/items/{item_id}", status_code=204)
+def delete_stock_item(item_id: int, db: Session = Depends(get_db),
+                      _: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+    item = db.query(models.StockItem).filter(models.StockItem.id == item_id).first()
+    if not item: raise HTTPException(404, "Article introuvable")
+    db.delete(item); db.commit()
 
 @stock_router.post("/movements", response_model=schemas.StockMovementOut, status_code=201)
 def add_movement(data: schemas.StockMovementCreate, db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
-    item = db.query(models.StockItem).filter(models.StockItem.id == data.item_id).first()
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    item = db.query(models.StockItem).filter(models.StockItem.id == data.item_id).with_for_update().first()
     if not item: raise HTTPException(404, "Article introuvable")
+    if data.quantity <= 0: raise HTTPException(400, "La quantité doit être positive")
     mv = models.StockMovement(**data.model_dump(), user_id=current_user.id)
     db.add(mv)
     if data.type == "entree":
@@ -613,9 +654,8 @@ def add_movement(data: schemas.StockMovementCreate, db: Session = Depends(get_db
     elif data.type == "inventaire":
         item.quantity = data.quantity
     db.commit(); db.refresh(mv)
-    # Stock alert if below threshold
     if item.quantity <= item.threshold_min:
-        notify_role(db, "responsable", hotel_id=current_user.hotel_id,
+        notify_role(db, "responsable", hotel_id=active_hotel,
                     type="stock_alert", title="Alerte stock",
                     message=item.name + " — seuil minimum atteint (" + str(int(item.quantity)) + "/" + str(int(item.threshold_min)) + ")",
                     entity_type="stock", entity_id=item.id, priority="high",
@@ -637,22 +677,49 @@ dashboard_router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @dashboard_router.get("/stats", response_model=schemas.DashboardStats)
 def get_stats(db: Session = Depends(get_db),
-              _: models.User = Depends(get_current_user)):
-    rooms = db.query(models.Room).all()
-    stock_items = db.query(models.StockItem).all()
-    avg_rating = db.query(func.avg(models.ClientReview.rating)).scalar() or 0.0
+              current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    rooms_q = db.query(models.Room)
+    if active_hotel: rooms_q = rooms_q.filter(models.Room.hotel_id == active_hotel)
+    rooms = rooms_q.all()
+    stock_q = db.query(models.StockItem)
+    if active_hotel: stock_q = stock_q.filter(models.StockItem.hotel_id == active_hotel)
+    stock_items = stock_q.all()
+    avg_q = db.query(func.avg(models.ClientReview.rating))
+    if active_hotel: avg_q = avg_q.filter(models.ClientReview.hotel_id == active_hotel)
+    avg_rating = avg_q.scalar() or 0.0
 
     def count_rooms(s): return sum(1 for r in rooms if r.status == s)
-    def count_tasks(s): return db.query(models.Task).filter(models.Task.status == s).count()
-    def count_inv(s):   return db.query(models.Intervention).filter(models.Intervention.status == s, models.Intervention.is_duplicate == False).count()
+    def count_tasks(s):
+        q = db.query(models.Task).filter(models.Task.status == s)
+        if active_hotel: q = q.filter(models.Task.hotel_id == active_hotel)
+        return q.count()
+    def count_inv(s):
+        q = db.query(models.Intervention).filter(models.Intervention.status == s, models.Intervention.is_duplicate == False)
+        if active_hotel: q = q.filter(models.Intervention.hotel_id == active_hotel)
+        return q.count()
 
     # Real attendance stats
     from datetime import date
     today = date.today().isoformat()
-    shifts = db.query(models.AttendanceShift).filter(models.AttendanceShift.shift_date == today).all()
+    att_q = db.query(models.AttendanceShift).filter(models.AttendanceShift.shift_date == today)
+    if active_hotel: att_q = att_q.filter(models.AttendanceShift.hotel_id == active_hotel)
+    shifts = att_q.all()
     att_present = sum(1 for s in shifts if s.status in ("present", "late"))
     att_absent = sum(1 for s in shifts if s.status == "absent")
     att_late = sum(1 for s in shifts if s.status == "late")
+
+    tasks_urg_q = db.query(models.Task).filter(
+        models.Task.priority == "urgente",
+        models.Task.status.notin_(["terminee","validee"])
+    )
+    if active_hotel: tasks_urg_q = tasks_urg_q.filter(models.Task.hotel_id == active_hotel)
+
+    rev_q = db.query(models.ClientReview).filter(models.ClientReview.status == "nouveau")
+    if active_hotel: rev_q = rev_q.filter(models.ClientReview.hotel_id == active_hotel)
+
+    eq_q = db.query(models.EquipmentItem).filter(models.EquipmentItem.status.in_(["en_panne", "hors_service"]))
+    if active_hotel: eq_q = eq_q.filter(models.EquipmentItem.hotel_id == active_hotel)
 
     return schemas.DashboardStats(
         rooms_total        = len(rooms),
@@ -662,20 +729,13 @@ def get_stats(db: Session = Depends(get_db),
         rooms_bloquee      = count_rooms("bloquee"),
         tasks_a_faire      = count_tasks("a_faire"),
         tasks_en_cours     = count_tasks("en_cours"),
-        tasks_urgentes     = db.query(models.Task).filter(
-            models.Task.priority == "urgente",
-            models.Task.status.notin_(["terminee","validee"])
-        ).count(),
+        tasks_urgentes     = tasks_urg_q.count(),
         interventions_nouvelles = count_inv("nouvelle"),
         interventions_en_cours  = count_inv("en_cours"),
-        reviews_nouveau         = db.query(models.ClientReview).filter(
-            models.ClientReview.status == "nouveau"
-        ).count(),
+        reviews_nouveau         = rev_q.count(),
         reviews_avg_rating      = round(float(avg_rating), 1),
         stock_alerts            = sum(1 for i in stock_items if i.quantity <= i.threshold_min),
-        equipment_en_panne      = db.query(models.EquipmentItem).filter(
-            models.EquipmentItem.status.in_(["en_panne", "hors_service"])
-        ).count(),
+        equipment_en_panne      = eq_q.count(),
         attendance_present = att_present,
         attendance_absent = att_absent,
         attendance_late = att_late,

@@ -3,7 +3,7 @@
  * Network-only pour TOUS les appels API
  */
 
-const CACHE_VERSION = 'hotel-os-v11';
+const CACHE_VERSION = 'hotel-os-v13';
 
 const STATIC_ASSETS = [
   '/',

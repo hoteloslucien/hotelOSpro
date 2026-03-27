@@ -4,66 +4,66 @@ Application terrain pour hôtels. PWA installable sur téléphone.
 
 ---
 
-## Démarrage local (test complet)
+## Démarrage local
 
 ```bash
-# 1. Environnement Python
 python3 -m venv venv
 source venv/bin/activate      # Mac/Linux
-# venv\Scripts\activate       # Windows
-
-# 2. Dépendances
 pip install -r requirements.txt
-
-# 3. Lancer (le seed s'exécute automatiquement au 1er démarrage)
 uvicorn backend.main:app --reload
-
-# 4. Ouvrir http://localhost:8000
+# Ouvrir http://localhost:8000
 ```
 
-Le seed est automatique au premier démarrage si la base est vide.
-Pour le relancer manuellement : `python -m backend.seed`
+Le seed s'exécute automatiquement au premier démarrage.
 
 ---
 
 ## Comptes de test
 
-| Rôle         | Email                | Mot de passe | Modules visibles                                                     |
-|--------------|----------------------|--------------|----------------------------------------------------------------------|
-| Direction    | direction1@hotel.fr  | admin123     | Tout                                                                 |
-| Responsable  | gouvg@hotel.fr       | admin123     | Dashboard, Chambres, Interventions, Tâches, Tournées, Messages, Avis, Équipements, Stock |
-| Gouvernante  | gouv1@hotel.fr       | admin123     | Dashboard, Chambres, Interventions, Tâches, Tournées, Messages      |
-| Technicien   | tech1@hotel.fr       | admin123     | Dashboard, Interventions, Tâches, Chambres, Messages, Stock         |
-| Technicien 2 | tech2@hotel.fr       | admin123     | Dashboard, Interventions, Tâches, Chambres, Messages, Stock         |
-| Réception    | recep1@hotel.fr      | admin123     | Dashboard, Chambres, Interventions, Messages, Avis                  |
+| Rôle | Email | Mot de passe |
+|---|---|---|
+| Direction | direction@hotel.fr | Admin123! |
+| Responsable technique | resptech@hotel.fr | Admin123! |
+| Adjoint technique | adjtech@hotel.fr | Admin123! |
+| Chef équipe tech. | cheftech@hotel.fr | Admin123! |
+| Technicien 1 | tech1@hotel.fr | Admin123! |
+| Technicien 2 | tech2@hotel.fr | Admin123! |
+| Gouvernante générale | gouvernante@hotel.fr | Admin123! |
+| Gouvernante | gouv1@hotel.fr | Admin123! |
+| Réception | reception1@hotel.fr | Admin123! |
+| Duty Manager | duty1@hotel.fr | Admin123! |
+| Admin | admin@hotel.fr | admin123 |
 
-> Changer les mots de passe avant tout déploiement en production.
+> Changer tous les mots de passe avant déploiement en production.
 
 ---
 
-## Ce que fait chaque module
+## Modules disponibles
 
-| Module        | Usage terrain                                      |
-|---------------|-----------------------------------------------------|
-| Dashboard     | Vue du jour adaptée au rôle connecté               |
-| Interventions | Créer, prendre, suivre, clôturer une intervention  |
-| Tâches        | Tâches planifiées avec statuts et priorités        |
-| Chambres      | Statut en temps réel, ménage, disponibilité        |
-| Messages      | Messagerie interne par canal (général, technique…) |
-| Tournées      | Planification et suivi des tournées de ménage      |
-| Avis clients  | Collecte et traitement des retours clients         |
-| Équipements   | Inventaire et statut du matériel                   |
-| Stock         | Gestion des consommables avec alertes              |
+| Module | Description |
+|---|---|
+| Dashboard | Vue du jour adaptée au rôle |
+| Réglages | Hôtel, Zones, Chambres, Exploitation, Stock, Technique, Utilisateurs, Communication |
+| Interventions | Créer, prendre, suivre, clôturer — avec filtres et workflows |
+| Tâches | Planifiées avec statuts, priorités, assignation, validation |
+| Chambres | Statut en temps réel, ménage, disponibilité, QR checkout |
+| Conversations | Messagerie interne directe ou groupe |
+| Tournées | Planification et suivi des rondes de ménage |
+| Équipements | Inventaire familles/types/items avec statuts |
+| Stock | Consommables avec mouvements et alertes de seuil |
+| Présence | Gestion des postes, pauses, vues équipe |
+| Notifications | Alertes temps réel par rôle |
+| Avis clients | Collecte et traitement des retours post check-out |
 
 ---
 
 ## Variables d'environnement
 
-| Variable          | Défaut                               | Description                                  |
-|-------------------|--------------------------------------|----------------------------------------------|
-| DATABASE_URL      | sqlite:///./hotel_os.db              | URL base de données (PostgreSQL en prod)     |
-| SECRET_KEY        | hotel-os-dev-secret-change-in-prod   | Clé de signature JWT — changer en prod       |
-| ALLOWED_ORIGINS   | *                                    | CORS : https://ton-app.railway.app en prod   |
+| Variable | Défaut | Description |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./hotel_os.db` | PostgreSQL en production |
+| `SECRET_KEY` | `hotel-os-dev-secret-change-in-prod` | Clé JWT — **obligatoire en prod** |
+| `ALLOWED_ORIGINS` | `*` | CORS — restreindre en production |
 
 ---
 
@@ -71,43 +71,57 @@ Pour le relancer manuellement : `python -m backend.seed`
 
 ```
 GET /health
-{"status": "ok", "version": "1.0.0"}
+→ {"status": "ok", "version": "1.0.0"}
 ```
 
-Utilisée par Railway pour le healthcheck automatique.
-
----
-
-## Déploiement sur Railway
-
-Voir DEPLOIEMENT.md — 10 min, gratuit pour commencer.
+Utilisée par Railway/Render pour le healthcheck automatique.
 
 ---
 
 ## Structure du projet
 
 ```
-hotelOS/
+hotelOSpro/
 ├── backend/
-│   ├── __init__.py     - package Python
-│   ├── main.py         - FastAPI + sert le frontend + seed auto
-│   ├── database.py     - SQLite dev / PostgreSQL prod
-│   ├── models.py       - Modèles SQLAlchemy
-│   ├── routers.py      - Routes API
-│   ├── schemas.py      - Validation Pydantic
-│   ├── auth.py         - JWT + bcrypt
-│   └── seed.py         - Données de démonstration
+│   ├── main.py                  — FastAPI + /health + sert le frontend
+│   ├── database.py              — SQLite dev / PostgreSQL prod
+│   ├── models.py                — Tous les modèles SQLAlchemy
+│   ├── models_roles.py          — Rôles et permissions
+│   ├── schemas.py               — Validation Pydantic (Create/Update/Out)
+│   ├── auth.py                  — JWT + bcrypt + require_roles
+│   ├── security.py              — Vérification permissions granulaires
+│   ├── seed.py                  — Rôles, permissions, comptes de base
+│   ├── notifications.py         — Helpers notifications push
+│   ├── routers.py               — Rooms, Tasks, Interventions, Stock, Dashboard, Rounds, Reviews
+│   ├── routers_socle.py         — Hotels, Zones, Services, Audit
+│   ├── routers_settings.py      — Référentiels : catégories, types, familles/types équipements
+│   ├── routers_roles.py         — Rôles, permissions, users réglages
+│   ├── routers_attendance.py    — Présence et postes
+│   ├── routers_conversations.py — Conversations et messages
+│   └── routers_notifications.py — Notifications
 ├── frontend/
 │   ├── index.html
-│   ├── sw.js           - Service Worker (installation mobile)
+│   ├── sw.js                    — Service Worker (PWA + cache v13)
 │   ├── manifest.json
 │   ├── css/style.css
 │   └── js/
-│       ├── api.js      - Client HTTP centralisé
-│       ├── app.js      - Navigation + filtrage par rôle
-│       ├── utils.js
-│       ├── modal.js
-│       └── pages/      - Un fichier par module
+│       ├── api.js               — Client HTTP centralisé (92+ méthodes)
+│       ├── app.js               — Navigation + filtrage par rôle
+│       ├── utils.js             — Helpers (label, badge, timeAgo, formatDate)
+│       ├── modal.js             — Modale réutilisable avec formulaires
+│       └── pages/
+│           ├── settings.js      — Réglages généraux (8 onglets CRUD)
+│           ├── dashboard.js
+│           ├── interventions.js
+│           ├── tasks.js
+│           ├── rooms.js
+│           ├── stock.js
+│           ├── equipment.js
+│           ├── conversations.js
+│           ├── attendance.js
+│           ├── notifications.js
+│           ├── reviews.js
+│           └── rounds.js
 ├── Procfile
 ├── railway.json
 ├── nixpacks.toml
@@ -116,14 +130,20 @@ hotelOS/
 
 ---
 
-## Checklist avant partage collègues
+## Déploiement
 
-- Le projet démarre sans erreur (uvicorn backend.main:app --reload)
-- /health répond {"status":"ok"} sur http://localhost:8000/health
-- Le login fonctionne avec les comptes ci-dessus
-- La console navigateur ne remonte aucune erreur rouge
-- Les modules principaux (Dashboard, Interventions, Tâches, Chambres, Messages) s'affichent
-- L'interface s'affiche correctement sur mobile
-- La PWA s'installe via Safari (iPhone) ou Chrome (Android)
-- SECRET_KEY est changée en prod
-- ALLOWED_ORIGINS est restreinte en prod
+Voir `DEPLOIEMENT.md` — environ 10 minutes sur Railway.
+
+---
+
+## Checklist avant partage
+
+- [ ] `uvicorn backend.main:app --reload` démarre sans erreur
+- [ ] `GET /health` → `{"status":"ok","version":"1.0.0"}`
+- [ ] Login fonctionne avec les comptes ci-dessus
+- [ ] Dashboard, Interventions, Tâches, Chambres s'affichent
+- [ ] Réglages → tous les onglets opérationnels
+- [ ] Interface correcte sur mobile
+- [ ] PWA installable (Safari iPhone / Chrome Android)
+- [ ] `SECRET_KEY` différente de la valeur par défaut en production
+- [ ] `ALLOWED_ORIGINS` restreinte à ton domaine en production

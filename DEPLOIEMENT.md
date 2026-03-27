@@ -1,12 +1,11 @@
-# Déploiement Hotel OS
-## Rendre l'app accessible à tes collègues sur leur téléphone
+# Déploiement Hotel OS sur Railway
 
 ---
 
-## Ce que tu vas obtenir
+## Résultat attendu
 
-Une URL publique du type **`https://hotel-os-xxx.railway.app`**
-Tes collègues l'ouvrent → bouton "Ajouter à l'écran d'accueil" → app installée.
+URL publique du type `https://hotel-os-xxx.railway.app`  
+Tes collègues l'ouvrent → "Ajouter à l'écran d'accueil" → app installée.
 
 **Coût : 0 € pour commencer** (Railway offre 5$/mois de crédit gratuit)
 
@@ -27,15 +26,15 @@ git push -u origin main
 ## Étape 2 — Railway (5 min)
 
 1. **railway.app** → "New Project" → "Deploy from GitHub"
-2. Sélectionner le repo `hotel-os` → **Deploy**
-3. Dans le projet → **"+ New"** → **"Database"** → **"PostgreSQL"**
-   (La variable `DATABASE_URL` est injectée automatiquement)
+2. Sélectionner le repo → **Deploy**
+3. Dans le projet → **"+ New"** → **"Database"** → **"PostgreSQL"**  
+   (`DATABASE_URL` est injectée automatiquement)
 4. **Variables** → ajouter :
 
-| Variable          | Valeur                                    |
-|-------------------|-------------------------------------------|
-| `SECRET_KEY`      | une-longue-chaine-aleatoire-32-caracteres |
-| `ALLOWED_ORIGINS` | https://hotel-os-xxx.railway.app          |
+| Variable | Valeur |
+|---|---|
+| `SECRET_KEY` | une-chaine-aleatoire-32-caracteres-minimum |
+| `ALLOWED_ORIGINS` | https://hotel-os-xxx.railway.app |
 
 5. Redéployer → attendre 2–3 min
 
@@ -43,20 +42,22 @@ git push -u origin main
 
 ## Étape 3 — Vérifier le healthcheck
 
-Ouvrir dans le navigateur :
 ```
 https://ton-app.railway.app/health
+→ {"status":"ok","version":"1.0.0"}
 ```
-Réponse attendue : `{"status":"ok","version":"1.0.0"}`
 
-Si Railway indique "Service unhealthy", vérifier les logs du build.
+Railway vérifie cette route automatiquement via `railway.json`.  
+Si le service est "unhealthy" → consulter les logs du build.
 
 ---
 
-## Étape 4 — Seed des données
+## Étape 4 — Seed automatique
 
-Le seed s'exécute automatiquement au premier démarrage si la base est vide.
-Si besoin de le relancer manuellement, dans Railway → ton service → Shell :
+Le seed s'exécute automatiquement au premier démarrage si la base est vide.  
+Il crée : rôles, permissions et comptes utilisateurs.
+
+Pour relancer manuellement (Railway → ton service → Shell) :
 
 ```bash
 python -m backend.seed
@@ -66,52 +67,65 @@ python -m backend.seed
 
 ## Étape 5 — Installation sur les téléphones
 
-**Android (Chrome) :**
-Menu ⋮ → "Ajouter à l'écran d'accueil"
+**Android (Chrome) :** Menu ⋮ → "Ajouter à l'écran d'accueil"
 
-**iPhone (Safari uniquement) :**
-Bouton partage ↑ → "Sur l'écran d'accueil"
-
----
-
-## Test local complet
-
-```bash
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn backend.main:app --reload
-# Ouvrir http://localhost:8000
-# Vérifier http://localhost:8000/health
-```
+**iPhone (Safari uniquement) :** Bouton partage ↑ → "Sur l'écran d'accueil"
 
 ---
 
 ## Comptes de test
 
-| Rôle        | Email                 | Mot de passe |
-|-------------|-----------------------|--------------|
-| Direction   | direction1@hotel.fr   | admin123     |
-| Responsable | gouvg@hotel.fr        | admin123     |
-| Gouvernante | gouv1@hotel.fr        | admin123     |
-| Technicien  | tech1@hotel.fr        | admin123     |
-| Réception   | recep1@hotel.fr       | admin123     |
+| Rôle | Email | Mot de passe |
+|---|---|---|
+| Direction | direction@hotel.fr | Admin123! |
+| Responsable technique | resptech@hotel.fr | Admin123! |
+| Gouvernante | gouv1@hotel.fr | Admin123! |
+| Technicien | tech1@hotel.fr | Admin123! |
+| Réception | reception1@hotel.fr | Admin123! |
+| Admin | admin@hotel.fr | admin123 |
 
-Changer tous les mots de passe en production.
+> Changer tous les mots de passe avant utilisation en production.
 
 ---
 
-## En cas de problème
+## Variables d'environnement
+
+| Variable | Défaut | Description |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./hotel_os.db` | PostgreSQL en prod (Railway injecte auto) |
+| `SECRET_KEY` | `hotel-os-dev-secret-change-in-prod` | Clé JWT — **changer obligatoirement** |
+| `ALLOWED_ORIGINS` | `*` | CORS — restreindre à ton domaine en prod |
+
+---
+
+## Test local
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn backend.main:app --reload
+# http://localhost:8000
+# http://localhost:8000/health → {"status":"ok","version":"1.0.0"}
+```
+
+---
+
+## Résolution de problèmes
 
 **Le backend ne démarre pas :**
-Vérifier les logs Railway. La commande attendue est :
 ```
 gunicorn backend.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
 ```
+Vérifier les logs Railway.
 
-**Le /health retourne du HTML :**
-Impossible avec cette version — /health est déclaré avant la catch-all SPA.
-Si cela se produit, vérifier que le bon fichier main.py est déployé.
+**`/health` ne répond pas :**  
+La route `/health` est déclarée avant le montage des fichiers statiques dans `main.py`.  
+Vérifier que le bon fichier est déployé.
 
-**Le seed ne s'exécute pas :**
-Le seed est idempotent : il ne s'exécute que si aucun utilisateur n'existe.
-Vérifier la connexion PostgreSQL via DATABASE_URL dans les variables Railway.
+**Le seed ne s'exécute pas :**  
+Idempotent — ne tourne que si aucun rôle n'existe en base.  
+Vérifier `DATABASE_URL` dans les variables Railway.
+
+**Interface blanche après déploiement :**  
+Vider le cache du navigateur — le Service Worker peut servir une ancienne version.  
+La version de cache actuelle est `hotel-os-v13`.

@@ -52,15 +52,25 @@ def ensure_bootstrap_data():
 Base.metadata.create_all(bind=engine)
 ensure_bootstrap_data()
 
-app = FastAPI(title="Hotel OS")
+app = FastAPI(title="Hotel OS", version="1.0.0")
+
+# CORS — * en dev, restreindre via ALLOWED_ORIGINS en production
+# Ex: ALLOWED_ORIGINS=https://mon-hotel.railway.app,https://mon-hotel.onrender.com
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+_origins = [o.strip() for o in _raw_origins.split(",")] if _raw_origins != "*" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
+
+@app.get("/health", tags=["Santé"])
+def health():
+    """Healthcheck Railway/Render — répond toujours 200."""
+    return {"status": "ok", "version": "1.0.0"}
 
 # Imports routeurs après bootstrap DB
 from .routers import (
@@ -86,6 +96,7 @@ from .routers_roles import (
     my_perms_router,
     settings_users_router,
 )
+from .routers_settings import settings_router
 
 app.include_router(auth_router)
 app.include_router(users_router)
@@ -112,6 +123,7 @@ app.include_router(roles_router)
 app.include_router(permissions_router)
 app.include_router(my_perms_router)
 app.include_router(settings_users_router)
+app.include_router(settings_router)
 
 # Frontend statique
 BASE_DIR = Path(__file__).resolve().parent.parent
