@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI
-from  .routers_settings import settings_router
+from  backend.routers_settings import settings_router
 
 app = FastAPI()
 
