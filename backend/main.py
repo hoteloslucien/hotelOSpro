@@ -10,6 +10,8 @@ Prod   : gunicorn backend.main:app -w 2 -k uvicorn.workers.UvicornWorker
 import os
 from pathlib import Path
 
+print("!! MAIN LOADED")
+
 from fastapi import FastAPI
 from  backend.routers_settings import settings_router
 
