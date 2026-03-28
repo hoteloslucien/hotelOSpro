@@ -15,9 +15,7 @@ print("!! MAIN LOADED")
 from fastapi import FastAPI
 from  backend.routers_settings import settings_router
 
-app = FastAPI()
 
-app.include_router(settings_router)
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -61,6 +59,8 @@ Base.metadata.create_all(bind=engine)
 ensure_bootstrap_data()
 
 app = FastAPI(title="Hotel OS", version="1.0.0")
+
+app.include_router(settings_router)
 
 # CORS — * en dev, restreindre via ALLOWED_ORIGINS en production
 # Ex: ALLOWED_ORIGINS=https://mon-hotel.railway.app,https://mon-hotel.onrender.com
