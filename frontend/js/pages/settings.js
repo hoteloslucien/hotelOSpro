@@ -231,7 +231,7 @@ const SettingsPage = {
         Modal.form('Nouvelle zone', zoneFields(), async function(data) {
           if (!data.name) throw new Error('Nom requis');
           var me = App.currentUser;
-          await Api.createZone({ name:data.name, code:data.code||null, type:data.type||null, hotel_id:me.hotel_id||1 });
+          await Api.createZone({ name:data.name, code:data.code||null, type:data.type||null, hotel_id:me.hotel_id });
           Toast.success('Zone ajoutée');
           SettingsPage._showZonesManager();
         });
@@ -370,7 +370,6 @@ const SettingsPage = {
       });
     } catch(e) { el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>'; }
   },
-  // ═══ ONGLET 4 — EXPLOITATION ═══════════════════════════════════
   // ═══ ONGLET 4 — EXPLOITATION : router 3 sous-onglets ═══════════
   _exploitSubTab: 'tasks',
 
@@ -559,6 +558,7 @@ const SettingsPage = {
             + '<div class="list-item-right" style="gap:6px">'
             + '<span class="badge" style="background:' + prioColor + '22;color:' + prioColor + '">' + prioLabel + '</span>'
             + '<button class="btn btn-secondary btn-sm" data-inv-edit="' + inv.id + '">✏️</button>'
+            + '<button class="btn btn-sm" style="color:var(--danger)" data-inv-del="' + inv.id + '" data-inv-title="' + inv.title + '">🗑</button>'
             + '</div></div>';
         });
         h += '</div>';
@@ -588,7 +588,8 @@ const SettingsPage = {
           await Api.createIntervention({
             title:data.title, description:data.description||null,
             priority:data.priority||'normale', source:data.source||'staff',
-            zone:data.zone||null, room_id:data.room_id?parseInt(data.room_id):null
+            zone:data.zone||null, zone_id:null,
+            room_id:data.room_id?parseInt(data.room_id):null
           });
           Toast.success('Intervention créée');
           SettingsPage._showInterventionsManager(el);
@@ -600,19 +601,37 @@ const SettingsPage = {
           var inv = invs.find(function(x) { return x.id === parseInt(b.dataset.invEdit); });
           if (!inv) return;
           Modal.form('Modifier intervention', [
-            { key:'title',           label:'Titre',           value:inv.title||'',             placeholder:'Titre' },
+            { key:'title',           label:'Titre *',         value:inv.title||'',             placeholder:'Titre' },
             { key:'description',     label:'Description',     value:inv.description||'',       placeholder:'Détails…' },
             { key:'priority',        label:'Priorité',        value:inv.priority||'normale',    type:'select', options:prioOpts },
             { key:'status',          label:'Statut',          value:inv.status||'nouvelle',     type:'select', options:statusInvOpts },
+            { key:'zone',            label:'Zone/Lieu',       value:inv.zone||'',              placeholder:'Ex: Hall, Piscine…' },
             { key:'resolution_note', label:'Note résolution', value:inv.resolution_note||'',   placeholder:'Ce qui a été fait…' },
           ], async function(data) {
+            if (!data.title) throw new Error('Titre requis');
             await Api.updateIntervention(inv.id, {
               title:data.title||null, priority:data.priority||null,
-              status:data.status||null, resolution_note:data.resolution_note||null
+              status:data.status||null, zone:data.zone||null,
+              resolution_note:data.resolution_note||null
             });
             Toast.success('Intervention modifiée');
             SettingsPage._showInterventionsManager(el);
           });
+        });
+      });
+
+      el.querySelectorAll('[data-inv-del]').forEach(function(b) {
+        b.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var iid = parseInt(b.dataset.invDel);
+          var title = b.dataset.invTitle || 'cette intervention';
+          Modal.confirm('Supprimer "' + title + '" ?', async function() {
+            try {
+              await Api.deleteIntervention(iid);
+              Toast.success('Intervention supprimée');
+              SettingsPage._showInterventionsManager(el);
+            } catch(e) { Toast.error(e.message); }
+          }, 'Supprimer', true);
         });
       });
     } catch(e) { el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>'; }
@@ -798,7 +817,7 @@ const SettingsPage = {
       if (stockAddBtn) stockAddBtn.addEventListener('click', function() {
         Modal.form('Nouvel article', stockFields(), async function(data) {
           if (!data.name) throw new Error('Nom requis');
-          await Api.createStockItem({ name:data.name, reference:data.reference||null, category:data.category||null, unit:data.unit||'unite', threshold_min:parseFloat(data.threshold_min)||5, location:data.location||null, unit_cost:parseFloat(data.unit_cost)||0 });
+          await Api.createStockItem({ name:data.name, reference:data.reference||null, category:data.category||null, unit:data.unit||'unite', threshold_min:parseFloat(data.threshold_min)||5, location:data.location||null, unit_cost:parseFloat(data.unit_cost)||0, is_active:true });
           Toast.success('Article créé'); SettingsPage._showStockManager();
         });
       });
@@ -1008,9 +1027,21 @@ const SettingsPage = {
         ];
       };
       document.getElementById('eq-add-btn') && document.getElementById('eq-add-btn').addEventListener('click', function() {
+        if (families.length === 0) {
+          Toast.error('Créez d\'abord une famille d\'équipement avant d\'ajouter un équipement.');
+          return;
+        }
+        if (types.length === 0) {
+          Toast.error('Créez d\'abord un type d\'équipement avant d\'ajouter un équipement.');
+          return;
+        }
         Modal.form('Nouvel équipement', eqFields(), async function(data) {
-          if (!data.name) throw new Error('Nom requis');
-          await Api.createEquipmentItem({ name:data.name, family_id:parseInt(data.family_id), type_id:parseInt(data.type_id), asset_code:data.asset_code||null, status:data.status||'ok', notes:data.notes||null });
+          if (!data.name) throw new Error('Titre requis');
+          var famId = parseInt(data.family_id);
+          var typId = parseInt(data.type_id);
+          if (!famId || isNaN(famId)) throw new Error('Sélectionnez une famille');
+          if (!typId || isNaN(typId)) throw new Error('Sélectionnez un type');
+          await Api.createEquipmentItem({ name:data.name, family_id:famId, type_id:typId, asset_code:data.asset_code||null, status:data.status||'ok', notes:data.notes||null });
           Toast.success('Équipement ajouté'); SettingsPage._showTechniqueManager();
         });
       });
@@ -1020,7 +1051,11 @@ const SettingsPage = {
           if (!item) return;
           Modal.form('Modifier équipement', eqFields(item), async function(data) {
             if (!data.name) throw new Error('Nom requis');
-            await Api.updateEquipmentItem(item.id, { name:data.name, family_id:parseInt(data.family_id), type_id:parseInt(data.type_id), asset_code:data.asset_code||null, status:data.status||'ok', notes:data.notes||null });
+            var famId = parseInt(data.family_id);
+            var typId = parseInt(data.type_id);
+            if (!famId || isNaN(famId)) throw new Error('Sélectionnez une famille');
+            if (!typId || isNaN(typId)) throw new Error('Sélectionnez un type');
+            await Api.updateEquipmentItem(item.id, { name:data.name, family_id:famId, type_id:typId, asset_code:data.asset_code||null, status:data.status||'ok', notes:data.notes||null });
             Toast.success('Modifié'); SettingsPage._showTechniqueManager();
           });
         });
@@ -1038,6 +1073,8 @@ const SettingsPage = {
   },
 
   // ═══ ONGLET 7 — UTILISATEURS & DROITS ══════════════════════════
+  _usersShowInactive: false,
+
   async _showUsersManager() {
     var el = this._tabEl(); if (!el) return;
     el.innerHTML = Utils.loader();
@@ -1047,29 +1084,40 @@ const SettingsPage = {
       var perms = App.permissions || [];
       var canCreate = perms.includes('users.create');
       var canUpdate = perms.includes('users.update');
+      var canDelete = perms.includes('users.delete');
       var canRoles  = perms.includes('roles.view');
+
+      var showInactive = SettingsPage._usersShowInactive || false;
+      var visible = showInactive ? users : users.filter(function(u){ return u.is_active; });
+      var inactiveCount = users.filter(function(u){ return !u.is_active; }).length;
 
       var h = '<div class="settings-section-header">'
         + '<div><div class="section-title">👥 Utilisateurs</div>'
-        + '<div class="section-sub">' + users.length + ' compte(s)</div></div>'
+        + '<div class="section-sub">' + visible.length + '/' + users.length + ' · ' + inactiveCount + ' inactif(s)</div></div>'
         + (canCreate ? '<button class="btn btn-primary btn-sm" id="user-add-btn">+ Nouveau</button>' : '')
-        + '</div><div class="activity-list">';
+        + '</div>'
+        + '<div class="filter-bar" style="margin-bottom:12px">'
+        + '<button class="filter-chip' + (!showInactive ? ' active' : '') + '" id="users-filter-active">Actifs (' + (users.length - inactiveCount) + ')</button>'
+        + '<button class="filter-chip' + (showInactive ? ' active' : '') + '" id="users-filter-all">Tous (' + users.length + ')</button>'
+        + '</div>'
+        + '<div class="activity-list">';
 
-      users.forEach(function(u) {
-        var initials = u.name.split(' ').map(function(n) { return n[0]; }).join('').slice(0,2).toUpperCase();
+      visible.forEach(function(u) {
+        var initials = u.name.split(' ').map(function(n) { return n[0] || '?'; }).join('').slice(0,2).toUpperCase();
         var activeBadge = u.is_active
           ? '<span class="badge badge-operationnel">Actif</span>'
           : '<span class="badge badge-bloquee">Inactif</span>';
-        h += '<div class="list-item">'
+        h += '<div class="list-item" style="' + (!u.is_active ? 'opacity:0.6' : '') + '">'
           + '<div class="list-item-icon" style="background:var(--amber-dim);font-size:14px;font-weight:700;color:var(--amber)">' + initials + '</div>'
           + '<div class="list-item-body">'
           + '<div class="list-item-title">' + u.name + '</div>'
-          + '<div class="list-item-sub">' + u.email + (u.service ? ' · ' + u.service : '') + '</div>'
+          + '<div class="list-item-sub">' + u.email + (u.service ? ' · ' + Utils.label(u.service) : '') + '</div>'
           + '</div>'
           + '<div class="list-item-right" style="gap:6px">'
-          + '<span class="badge badge-' + u.role + '">' + Utils.label(u.role) + '</span>'
+          + '<span class="badge">' + Utils.label(u.role) + '</span>'
           + activeBadge
-          + (canUpdate ? '<button class="btn btn-secondary btn-sm" data-user-edit="' + u.id + '" data-user-role="' + u.role + '" data-user-active="' + u.is_active + '">✏️</button>' : '')
+          + (canUpdate ? '<button class="btn btn-secondary btn-sm" data-user-edit="' + u.id + '" data-user-role="' + u.role + '" data-user-active="' + u.is_active + '" data-user-name="' + u.name + '">✏️</button>' : '')
+          + (canDelete && !u.is_active ? '<button class="btn btn-sm" style="color:var(--danger)" data-user-del="' + u.id + '" data-user-name="' + u.name + '">🗑</button>' : '')
           + '</div></div>';
       });
       h += '</div>';
@@ -1097,9 +1145,28 @@ const SettingsPage = {
 
       var addBtn = document.getElementById('user-add-btn');
       if (addBtn) addBtn.addEventListener('click', function() { SettingsPage.newUser(); });
+
+      var fa = document.getElementById('users-filter-active');
+      var fb = document.getElementById('users-filter-all');
+      if (fa) fa.addEventListener('click', function() { SettingsPage._usersShowInactive = false; SettingsPage._showUsersManager(); });
+      if (fb) fb.addEventListener('click', function() { SettingsPage._usersShowInactive = true; SettingsPage._showUsersManager(); });
+
       el.querySelectorAll('[data-user-edit]').forEach(function(b) {
         b.addEventListener('click', function() {
-          SettingsPage.editUser(parseInt(b.dataset.userEdit), b.dataset.userRole, b.dataset.userActive === 'true');
+          SettingsPage.editUser(parseInt(b.dataset.userEdit), b.dataset.userRole, b.dataset.userActive === 'true', b);
+        });
+      });
+      el.querySelectorAll('[data-user-del]').forEach(function(b) {
+        b.addEventListener('click', function() {
+          var uid = parseInt(b.dataset.userDel);
+          var uname = b.dataset.userName;
+          Modal.confirm('Supprimer définitivement le compte de "' + uname + '" ?\nIrréversible.', async function() {
+            try {
+              await Api.settingsDeleteUser(uid);
+              Toast.success('Compte supprimé');
+              SettingsPage._showUsersManager();
+            } catch(e) { Toast.error(e.message); }
+          }, 'Supprimer', true);
         });
       });
     } catch(e) { el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>'; }
@@ -1169,14 +1236,16 @@ const SettingsPage = {
     };
   },
 
-  async editUser(userId, currentRole, isActive) {
+  async editUser(userId, currentRole, isActive, buttonEl) {
     var roles = [];
     try { roles = await Api.roles(); } catch(e) {}
     var roleOpts = roles.filter(function(r) { return r.is_active; }).map(function(r) {
       return '<option value="' + r.name + '"' + (r.name===currentRole?' selected':'') + '>' + r.label + '</option>';
     }).join('');
+    var userName = buttonEl ? (buttonEl.dataset.userName || '') : '';
     Modal.open('Modifier le compte',
-      '<div class="form-group"><label>Rôle</label><select id="eu-role">' + roleOpts + '</select></div>'
+      '<div class="form-group"><label>Nom complet</label><input type="text" id="eu-name" value="' + userName + '" placeholder="Nom Prénom" /></div>'
+      + '<div class="form-group"><label>Rôle</label><select id="eu-role">' + roleOpts + '</select></div>'
       + '<div class="form-group"><label>Statut</label><select id="eu-active">'
       + '<option value="true"' + (isActive?' selected':'') + '>Actif</option>'
       + '<option value="false"' + (!isActive?' selected':'') + '>Inactif</option>'
@@ -1188,9 +1257,12 @@ const SettingsPage = {
       var btn = document.getElementById('eu-submit');
       btn.disabled = true; btn.textContent = '…';
       try {
+        var name      = document.getElementById('eu-name') ? document.getElementById('eu-name').value.trim() : null;
         var role      = document.getElementById('eu-role').value;
         var is_active = document.getElementById('eu-active').value === 'true';
-        await Api.settingsUpdateUser(userId, { role:role, is_active:is_active });
+        var payload = { role:role, is_active:is_active };
+        if (name) payload.name = name;
+        await Api.settingsUpdateUser(userId, payload);
         Modal.close(); Toast.success('Compte mis à jour'); SettingsPage._showUsersManager();
       } catch(e) { Toast.error(e.message); btn.disabled=false; btn.textContent='Enregistrer'; }
     };
@@ -1301,4 +1373,6 @@ const SettingsPage = {
   showRoles:  function() { this._currentTab='utilisateurs'; this.render(); },
   goToZones:  function() { this._currentTab='structure';    this.render(); },
   goToStock:  function() { this._currentTab='stock';        this.render(); },
+
+  destroy: function() { this._currentTab = 'etablissement'; this._exploitSubTab = 'tasks'; this._usersShowInactive = false; },
 };

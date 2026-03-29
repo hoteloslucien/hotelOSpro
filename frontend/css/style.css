@@ -184,7 +184,7 @@ body::before {
 .page-content {
   position: relative; z-index: 1;
   min-height: 100dvh;
-  padding: calc(var(--header-h) + 16px) 14px calc(var(--bnav-h) + 20px);
+  padding: calc(var(--header-h) + 16px) 14px calc(var(--bnav-h) + 20px + env(safe-area-inset-bottom, 0px));
 }
 .page-header {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
@@ -201,7 +201,9 @@ body::before {
 
 /* ── BOTTOM NAV ──────────────────────────────────────────────── */
 .bottom-nav {
-  position: fixed; bottom: 10px; left: 10px; right: 10px; z-index: 95;
+  position: fixed;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  left: 10px; right: 10px; z-index: 95;
   height: var(--bnav-h);
   background: rgba(255,255,255,0.92);
   border: 1px solid var(--border);
@@ -1222,3 +1224,131 @@ body { overflow-x: hidden; width: 100%; }
 }
 .exploit-subnav-btn:hover { background: var(--surface-3); color: var(--text-1); }
 .exploit-subnav-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* ═══ FIXES V14 ═══════════════════════════════════════════════════════════════ */
+
+/* Chambre sélectionnée — feedback visuel clair */
+.room-cell.room-selected {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgba(15,29,53,0.12);
+  transform: scale(1.03);
+  z-index: 1;
+}
+
+/* Bannière sélection */
+.selection-banner {
+  background: var(--blue-pale, rgba(59,130,246,0.1));
+  border: 1px solid var(--primary);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--navy, #0f1d35);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Notification non lue — fond subtil */
+.notif-unread {
+  background: rgba(59,130,246,0.04);
+  border-left: 3px solid var(--primary, #0f1d35);
+}
+
+/* Safe-area améliorée pour bottom-nav iOS */
+.bottom-nav {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
+}
+
+/* Page content — évite le chevauchement avec bottom-nav sur petits écrans */
+.page-content {
+  padding-bottom: calc(var(--bnav-h, 72px) + 32px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Modal body — scroll interne pour les formulaires longs sur mobile */
+.modal-body {
+  max-height: min(65vh, 520px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Filter bar — scroll horizontal homogène */
+.filter-bar {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.filter-bar::-webkit-scrollbar { display: none; }
+
+/* Settings tabs — scroll horizontal mobile */
+.settings-tabs-bar {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  display: flex;
+  gap: 6px;
+  padding-bottom: 4px;
+  flex-wrap: nowrap;
+}
+.settings-tabs-bar::-webkit-scrollbar { display: none; }
+.settings-tab-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Exploit subnav — même fix scroll */
+.exploit-subnav {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+}
+.exploit-subnav::-webkit-scrollbar { display: none; }
+.exploit-subnav-btn { flex-shrink: 0; }
+
+/* Perm toggle */
+.perm-toggle {
+  width: 28px; height: 16px; border-radius: 8px;
+  background: var(--border-mid, #e5e7eb);
+  cursor: pointer; transition: background .2s;
+  display: inline-block;
+}
+.perm-toggle.on { background: var(--primary, #0f1d35); }
+
+/* Responsive — room grid 3 colonnes sur medium */
+@media (min-width: 500px) {
+  .room-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Header safe-area iOS */
+.app-header {
+  padding-top: max(env(safe-area-inset-top, 0px), 0px);
+}
+
+/* Settings filter bar pour les chambres */
+.settings-filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.settings-filter-bar select {
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-mid, #e5e7eb);
+  border-radius: 8px;
+  background: var(--surface-1, #fff);
+  color: var(--text-1, #111827);
+}
+
+/* Dashboard header row with refresh button */
+.dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dashboard-header > div { flex: 1; }

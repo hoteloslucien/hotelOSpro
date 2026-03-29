@@ -231,6 +231,25 @@ def get_conversation(conv_id: int, db: Session = Depends(get_db),
     return _build_conv_out(db, conv, me.id)
 
 
+class ConvUpdate(BaseModel):
+    name: Optional[str] = None
+    is_archived: Optional[bool] = None
+
+@conv_router.patch("/{conv_id}", response_model=ConvOut)
+def update_conversation(conv_id: int, data: ConvUpdate, db: Session = Depends(get_db),
+                        me: models.User = Depends(get_current_user)):
+    """Renommer un groupe ou archiver une conversation."""
+    _verify_participant(db, conv_id, me.id)
+    conv = db.query(models.Conversation).filter(models.Conversation.id == conv_id).first()
+    if not conv: raise HTTPException(404, "Conversation introuvable")
+    if conv.type != "group" and data.name is not None:
+        raise HTTPException(400, "Seuls les groupes peuvent être renommés")
+    if data.name is not None: conv.name = data.name
+    if data.is_archived is not None: conv.is_archived = data.is_archived
+    db.commit(); db.refresh(conv)
+    return _build_conv_out(db, conv, me.id)
+
+
 @conv_router.get("/{conv_id}/participants", response_model=List[ParticipantOut])
 def get_participants(conv_id: int, db: Session = Depends(get_db),
                      me: models.User = Depends(get_current_user)):
@@ -411,3 +430,23 @@ def mark_read(conv_id: int, db: Session = Depends(get_db),
         db.add(models.ConvMessageRead(message_id=m.id, user_id=me.id, read_at=now))
     db.commit()
     return {"marked": len(unread_msgs)}
+
+
+@conv_router.delete("/{conv_id}", status_code=204)
+def delete_conversation(conv_id: int, db: Session = Depends(get_db),
+                        me: models.User = Depends(get_current_user)):
+    """Delete (archive) a conversation. Admin or creator only for groups."""
+    conv = db.query(models.Conversation).filter(models.Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(404, "Conversation introuvable")
+    _verify_participant(db, conv_id, me.id)
+    if conv.type == "group":
+        my_part = db.query(models.ConversationParticipant).filter(
+            models.ConversationParticipant.conversation_id == conv_id,
+            models.ConversationParticipant.user_id == me.id,
+            models.ConversationParticipant.is_active == True
+        ).first()
+        if (not my_part or my_part.role_in_conv != "admin") and me.role not in ("direction", "responsable"):
+            raise HTTPException(403, "Seuls les admins du groupe peuvent le supprimer")
+    conv.is_archived = True
+    db.commit()

@@ -1,10 +1,10 @@
-/* Hotel OS — Notifications Page */
-var NotificationsPage = {
+/* Hotel OS — Page Notifications — badge dynamique, mark-all, suppression */
+const NotificationsPage = {
   items: [],
+  filter: 'all',
 
   async render() {
     var el = document.getElementById('page-content');
-    if (!el) return;
     el.innerHTML = Utils.loader();
     try {
       this.items = await Api.notifications(100);
@@ -15,149 +15,97 @@ var NotificationsPage = {
   _draw: function() {
     var self = this;
     var unread = this.items.filter(function(n) { return !n.is_read; }).length;
+    var filters = ['all','unread'];
+    var chips = filters.map(function(f) {
+      var cnt = f === 'all' ? self.items.length : self.items.filter(function(n){ return !n.is_read; }).length;
+      return '<button class="filter-chip ' + (self.filter === f ? 'active' : '') + '" data-nf="' + f + '">' +
+        (f === 'all' ? 'Toutes' : 'Non lues') + ' (' + cnt + ')</button>';
+    }).join('');
 
-    var h = '<div class="page-header">' +
+    var visible = this.filter === 'unread' ? this.items.filter(function(n){ return !n.is_read; }) : this.items;
+
+    var ICONS = {
+      intervention_created:'🔧', intervention_assigned:'🔧', intervention_urgent:'🚨',
+      intervention_closed:'✅', intervention_duplicate:'🔁', intervention_taken:'🔧',
+      task_assigned:'📋', task_overdue:'⏰',
+      message_received:'💬', conversation_added:'💬',
+      attendance_late:'🕐', attendance_missing:'❌',
+      stock_alert:'📦', equipment_alert:'⚠️', room_block_request:'🛏️',
+    };
+
+    var list = visible.length ? visible.map(function(n) {
+      var icon = ICONS[n.type] || '🔔';
+      var readStyle = n.is_read ? 'opacity:0.6' : '';
+      var dotStyle = n.is_read ? '' : 'display:inline-block;width:8px;height:8px;background:var(--primary);border-radius:50%;margin-left:6px;vertical-align:middle';
+      return '<div class="list-item notif-item ' + (n.is_read ? '' : 'notif-unread') + '" data-notif-id="' + n.id + '" data-notif-entity="' + (n.entity_type || '') + '" data-notif-eid="' + (n.entity_id || '') + '" style="' + readStyle + ';cursor:pointer">' +
+        '<div class="list-item-icon" style="background:' + (n.priority === 'critical' || n.priority === 'high' ? 'rgba(239,68,68,.1)' : 'rgba(59,130,246,.1)') + '">' + icon + '</div>' +
+        '<div class="list-item-body">' +
+        '<div class="list-item-title">' + self._esc(n.title) + (n.is_read ? '' : '<span style="' + dotStyle + '"></span>') + '</div>' +
+        '<div class="list-item-sub">' + self._esc(n.message) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3);margin-top:3px">' + Utils.timeAgo(n.created_at) + '</div>' +
+        '</div>' +
+        '<div class="list-item-right">' + Utils.badge(n.priority) + '</div>' +
+        '</div>';
+    }).join('') : Utils.emptyState('🔔', 'Aucune notification');
+
+    document.getElementById('page-content').innerHTML =
+      '<div class="page-header">' +
       '<div><div class="page-h1">Notifications</div>' +
-      '<div class="page-sub">' + this.items.length + ' au total · ' + unread + ' non lue' + (unread > 1 ? 's' : '') + '</div></div>';
-    if (unread > 0) {
-      h += '<button class="btn btn-secondary btn-sm" id="notif-read-all">Tout marquer lu</button>';
-    }
-    h += '</div>';
+      '<div class="page-sub">' + unread + ' non lue' + (unread > 1 ? 's' : '') + '</div></div>' +
+      (unread > 0 ? '<button class="btn btn-secondary btn-sm" id="notif-read-all">Tout lire</button>' : '') +
+      '</div>' +
+      '<div class="filter-bar" id="notif-filter-bar">' + chips + '</div>' +
+      '<div id="notif-list">' + list + '</div>';
 
-    h += '<div class="activity-list">';
-    if (this.items.length === 0) {
-      h += Utils.emptyState('🔔', 'Aucune notification');
-    } else {
-      for (var i = 0; i < this.items.length; i++) {
-        var n = this.items[i];
-        var icon = self._icon(n.type);
-        var prioCls = self._prioCls(n.priority);
-        var unreadDot = n.is_read ? '' : '<div style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0"></div>';
+    document.getElementById('notif-filter-bar').querySelectorAll('[data-nf]').forEach(function(b) {
+      b.addEventListener('click', function() { self.filter = b.dataset.nf; self._draw(); });
+    });
 
-        h += '<div class="activity-item' + (n.is_read ? '' : ' notif-unread') + '" data-notif-id="' + n.id + '" ' +
-          (n.entity_type ? 'data-notif-entity="' + n.entity_type + '" data-notif-eid="' + (n.entity_id || '') + '"' : '') +
-          ' style="cursor:pointer">' +
-          '<div class="activity-avatar" style="background:' + prioCls + '">' + icon + '</div>' +
-          '<div class="activity-body">' +
-          '<div class="activity-title"' + (n.is_read ? '' : ' style="font-weight:700"') + '>' + self._esc(n.title) + '</div>' +
-          '<div class="activity-subtitle">' + self._esc(n.message) + '</div>' +
-          '</div>' +
-          '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">' +
-          '<div class="activity-time">' + Utils.timeAgo(n.created_at) + '</div>' +
-          unreadDot +
-          '</div></div>';
-      }
-    }
-    h += '</div>';
-
-    document.getElementById('page-content').innerHTML = h;
-
-    // Bind click events
-    var el = document.getElementById('page-content');
-    el.querySelectorAll('[data-notif-id]').forEach(function(item) {
-      item.addEventListener('click', function() {
+    document.getElementById('notif-list').querySelectorAll('[data-notif-id]').forEach(function(item) {
+      item.addEventListener('click', async function() {
         var nid = parseInt(item.dataset.notifId);
         var entity = item.dataset.notifEntity;
-        var eid = item.dataset.notifEid;
-        // Mark as read
-        Api.markNotificationRead(nid).then(function() {
-          App._updateNotifBadge();
-        }).catch(function(){});
-        // Navigate to entity — deep link where possible
-        if (entity === 'intervention') {
+        var eid = parseInt(item.dataset.notifEid);
+        // Mark read
+        try { await Api.markNotificationRead(nid); } catch(e) {}
+        var n = self.items.find(function(x){ return x.id === nid; });
+        if (n) n.is_read = true;
+        App._updateNotifBadge();
+        // Navigate to entity
+        if (entity === 'intervention' && eid) {
           App.navigate('interventions');
-          if (eid) setTimeout(function() {
-            if (typeof InterventionsPage !== 'undefined' && InterventionsPage.open) InterventionsPage.open(parseInt(eid));
+          setTimeout(function() {
+            if (typeof InterventionsPage !== 'undefined' && InterventionsPage.open) {
+              InterventionsPage.open(eid);
+            }
           }, 300);
-        }
-        else if (entity === 'task') {
+        } else if (entity === 'task' && eid) {
           App.navigate('tasks');
-          if (eid) setTimeout(function() {
-            if (typeof TasksPage !== 'undefined' && TasksPage.openTask) TasksPage.openTask(parseInt(eid));
-          }, 300);
-        }
-        else if (entity === 'conversation') {
-          App.navigate('messages');
-          if (eid) setTimeout(function() {
-            if (typeof ConversationsPage !== 'undefined') {
-              ConversationsPage._convId = parseInt(eid);
-              ConversationsPage._view = 'chat';
-              ConversationsPage.render();
-            }
-          }, 300);
-        }
-        else if (entity === 'attendance') {
-          App.navigate('attendance');
-          // If it's a specific user's attendance issue, switch to team tab
-          if (eid) setTimeout(function() {
-            if (typeof AttendancePage !== 'undefined') {
-              AttendancePage._tab = 'team';
-              AttendancePage.render();
-            }
-          }, 300);
-        }
-        else if (entity === 'equipment') {
-          App.navigate('equipment');
-          // Open specific equipment item if possible
-          if (eid) setTimeout(function() {
-            if (typeof EquipmentPage !== 'undefined' && EquipmentPage.openItem) EquipmentPage.openItem(parseInt(eid));
-          }, 300);
-        }
-        else if (entity === 'stock') {
+        } else if (entity === 'stock') {
           App.navigate('stock');
-          // Open specific stock item if possible
-          if (eid) setTimeout(function() {
-            if (typeof StockPage !== 'undefined' && StockPage.open) StockPage.open(parseInt(eid));
-          }, 300);
+        } else if (entity === 'equipment') {
+          App.navigate('equipment');
+        } else {
+          self._draw();
         }
-        else if (entity === 'room') {
-          App.navigate('rooms');
-          if (eid) setTimeout(function() {
-            if (typeof RoomsPage !== 'undefined' && RoomsPage.openRoom) RoomsPage.openRoom(parseInt(eid));
-          }, 300);
-        }
-        else { App.navigate('notifications'); }
       });
     });
 
     var readAllBtn = document.getElementById('notif-read-all');
-    if (readAllBtn) {
-      readAllBtn.addEventListener('click', async function() {
-        try {
-          await Api.markAllNotificationsRead();
-          Toast.success('Toutes les notifications marquées lues');
-          App._updateNotifBadge();
-          await self.render();
-        } catch(e) { Toast.error(e.message); }
-      });
-    }
-  },
-
-  _icon: function(type) {
-    var map = {
-      intervention_created: '🔧', intervention_assigned: '🔧', intervention_urgent: '🔴',
-      intervention_closed: '✅', intervention_duplicate: '🔁',
-      task_assigned: '📋', task_overdue: '⏰',
-      message_received: '💬', conversation_added: '👥',
-      attendance_late: '🕐', attendance_missing: '🚫',
-      stock_alert: '📦', equipment_alert: '⚙️',
-    };
-    return map[type] || '🔔';
-  },
-
-  _prioCls: function(prio) {
-    var map = {
-      critical: 'rgba(239,68,68,.1)',
-      high: 'rgba(245,158,11,.1)',
-      medium: 'rgba(15,29,53,.05)',
-      low: 'rgba(20,184,166,.08)',
-    };
-    return map[prio] || 'rgba(15,29,53,.05)';
+    if (readAllBtn) readAllBtn.addEventListener('click', async function() {
+      try {
+        await Api.markAllNotificationsRead();
+        self.items.forEach(function(n){ n.is_read = true; });
+        App._updateNotifBadge();
+        self._draw();
+        Toast.success('Toutes les notifications lues');
+      } catch(e) { Toast.error(e.message); }
+    });
   },
 
   _esc: function(v) {
-    return String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(v || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   },
 
-  destroy: function() {}
+  destroy: function() { this.filter = 'all'; },
 };

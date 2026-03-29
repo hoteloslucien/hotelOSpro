@@ -85,12 +85,13 @@
 
   <!-- Side menu -->
   <nav id="side-menu" class="side-menu hidden">
-    <div class="menu-user">
+    <div class="menu-user" onclick="App.editProfile()" style="cursor:pointer" title="Modifier mon profil">
       <div class="menu-avatar" id="menu-avatar">?</div>
       <div>
         <div class="menu-name" id="menu-name">…</div>
         <div class="menu-role" id="menu-role">…</div>
       </div>
+      <div style="margin-left:auto;font-size:11px;color:var(--text-3)">✏️</div>
     </div>
     <div class="menu-section">Navigation</div>
     <ul class="menu-list" id="nav-links">

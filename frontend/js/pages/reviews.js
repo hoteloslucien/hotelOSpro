@@ -54,10 +54,14 @@ const ReviewsPage = {
   open(id) {
     const r = this.items.find(x => x.id === id);
     if (!r) return;
+    const me = App.currentUser;
+    const canDelete = me && (me.role === 'responsable' || me.role === 'direction');
     const actionBtns = r.status === 'nouveau'
       ? `<button class="btn btn-primary" onclick="ReviewsPage.handle(${r.id})">Traiter</button>`
       : r.status === 'traite'
       ? `<button class="btn btn-success" onclick="ReviewsPage.close(${r.id})">Clôturer</button>` : '';
+    const deleteBtn = canDelete
+      ? `<button class="btn btn-secondary" style="color:var(--danger)" onclick="ReviewsPage.remove(${r.id})">🗑 Supprimer</button>` : '';
 
     Modal.open(`Avis de ${r.guest_name || 'Anonyme'}`, `
       <div style="margin-bottom:12px">
@@ -71,7 +75,7 @@ const ReviewsPage = {
       </div>
       ${r.action_taken ? `<div class="alert alert-success" style="margin-top:12px">
         <b>Action :</b> ${r.action_taken}</div>` : ''}`,
-      `<button class="btn btn-secondary" onclick="Modal.close()">Fermer</button>${actionBtns}`
+      `<button class="btn btn-secondary" onclick="Modal.close()">Fermer</button>${deleteBtn}${actionBtns}`
     );
   },
 
@@ -95,6 +99,18 @@ const ReviewsPage = {
       await this.render();
     } catch(e) { Toast.error(e.message); }
   },
-};
 
-/* StockPage → stock.js | EquipmentPage → equipment.js */
+  async remove(id) {
+    const self = this;
+    Modal.close(true);
+    Modal.confirm('Supprimer définitivement cet avis client ?', async function() {
+      try {
+        await Api.deleteReview(id);
+        Toast.success('Avis supprimé');
+        await self.render();
+      } catch(e) { Toast.error(e.message); }
+    }, 'Supprimer', true);
+  },
+
+  destroy: function() {},
+};

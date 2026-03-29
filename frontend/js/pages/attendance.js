@@ -7,7 +7,7 @@ var AttendancePage = {
     el.innerHTML = Utils.loader();
     var me = App.currentUser;
     var canTeam = App.has('attendance.team') || App.has('attendance.manage');
-    var isManager = me && (me.role === 'direction' || me.role === 'responsable' || me.role === 'gouvernante') && canTeam;
+    var isManager = canTeam;
 
     var h = '<div class="attendance-page">';
     if (isManager) {

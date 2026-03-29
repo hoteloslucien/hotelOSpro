@@ -8,6 +8,8 @@ const TasksPage = {
   equipItems: [],
   equipFamilies: [],
 
+  taskCats: [],
+
   async render() {
     const el = document.getElementById('page-content');
     el.innerHTML = Utils.loader();
@@ -19,6 +21,7 @@ const TasksPage = {
         Api.zones().catch(function(){ return []; }),
         Api.equipmentItems().catch(function(){ return []; }),
         Api.equipmentFamilies().catch(function(){ return []; }),
+        Api.taskCategories().catch(function(){ return []; }),
       ]);
       this.tasks = results[0];
       this.users = results[1];
@@ -26,6 +29,7 @@ const TasksPage = {
       this.zones = results[3];
       this.equipItems = results[4];
       this.equipFamilies = results[5];
+      this.taskCats = results[6];
       this._draw();
     } catch(e) { el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>'; }
   },
@@ -94,14 +98,18 @@ const TasksPage = {
         return { value: String(e.id), label: e.name + (fam ? ' (' + fam.name + ')' : '') };
       })
     );
+    // Catégories depuis le référentiel
+    var catOpts = [{ value: '', label: '— Aucune catégorie —' }].concat(
+      this.taskCats.map(function(c) { return { value: String(c.id), label: c.name }; })
+    );
 
     Modal.form('Nouvelle tâche', [
-      { key: 'title', label: 'Titre', placeholder: 'Ex: Changer ampoules couloir' },
+      { key: 'title', label: 'Titre *', placeholder: 'Ex: Changer ampoules couloir' },
       { key: 'description', type: 'textarea', label: 'Description (optionnel)' },
       { key: 'priority', label: 'Priorité', type: 'select', value: 'normale',
         options: ['basse','normale','haute','urgente'].map(function(v) { return { value: v, label: Utils.label(v) }; }) },
+      { key: 'category', label: 'Catégorie', type: 'select', options: catOpts },
       { key: 'lieu', label: 'Lieu', type: 'select', options: lieuOpts },
-      { key: 'equipment_item_id', label: 'Équipement', type: 'select', options: eqOpts },
       { key: 'service', label: 'Service', type: 'select', value: '',
         options: [{ value:'', label:'— Tous services —' }].concat(
           ['technique','housekeeping','reception','general'].map(function(v) { return { value:v, label:Utils.label(v) }; })
@@ -183,19 +191,96 @@ const TasksPage = {
 
   _actions: function(t) {
     var s = t.status;
+    var me = App.currentUser;
     var btn = function(label, cls, fn) {
       return '<button class="btn ' + cls + ' btn-sm" data-task-id="' + t.id + '" data-task-fn="' + fn + '">' + label + '</button>';
     };
-    if (s === 'a_faire')   return btn('Démarrer','btn-primary','start');
-    if (s === 'en_cours')  return btn('Pause','btn-warning','pause') + btn('Terminer','btn-success','done');
-    if (s === 'pause')     return btn('Reprendre','btn-primary','resume');
-    if (s === 'terminee')  return btn('Valider','btn-success','validate') + btn('Refuser','btn-danger','refuse');
-    return '';
+    var actions = '';
+    // Modifier toujours accessible (sauf validée)
+    if (s !== 'validee' && s !== 'refusee') {
+      actions += btn('✏️ Modifier', 'btn-secondary', 'edit');
+    }
+    if (s === 'a_faire')   actions += btn('Démarrer','btn-primary','start');
+    if (s === 'en_cours')  actions += btn('Pause','btn-warning','pause') + btn('Terminer','btn-success','done');
+    if (s === 'pause')     actions += btn('Reprendre','btn-primary','resume');
+    if (s === 'terminee')  actions += btn('Valider','btn-success','validate') + btn('Refuser','btn-danger','refuse');
+    var canDelete = me && (me.role === 'responsable' || me.role === 'responsable_technique' || me.role === 'direction');
+    if (canDelete && s !== 'validee') {
+      actions += btn('🗑 Supprimer', 'btn-secondary', 'delete');
+    }
+    return actions;
   },
 
   action: async function(id, type) {
+    var self = this;
     var map = { start:'en_cours', pause:'pause', resume:'en_cours', done:'terminee', validate:'validee', refuse:'refusee' };
     try {
+      if (type === 'edit') {
+        var t = this.tasks.find(function(x) { return x.id === id; });
+        if (!t) return;
+        Modal.close(true);
+        var prioOpts = [{value:'basse',label:'Basse'},{value:'normale',label:'Normale'},{value:'haute',label:'Haute'},{value:'urgente',label:'Urgente'}];
+        var userOpts = [{value:'',label:'— Non assigné —'}].concat(
+          this.users.map(function(u) { return {value:String(u.id), label:u.name + ' (' + Utils.label(u.role) + ')'}; })
+        );
+        var roomOpts = [{value:'',label:'— Aucune chambre —'}].concat(
+          this.rooms.map(function(r) { return {value:String(r.id), label:'Ch. '+r.number+' (ét.'+r.floor+')'}; })
+        );
+        Modal.form('Modifier la tâche', [
+          { key:'title',          label:'Titre *',      value:t.title||'',              placeholder:'Titre' },
+          { key:'description',    label:'Description',  value:t.description||'',        placeholder:'Détails…', type:'textarea' },
+          { key:'priority',       label:'Priorité',     value:t.priority||'normale',    type:'select', options:prioOpts },
+          { key:'service',        label:'Service',      value:t.service||'',            placeholder:'Ex: housekeeping' },
+          { key:'assigned_to_id', label:'Assigné à',    value:t.assigned_to_id?String(t.assigned_to_id):'', type:'select', options:userOpts },
+          { key:'room_id',        label:'Chambre',      value:t.room_id?String(t.room_id):'',               type:'select', options:roomOpts },
+        ], async function(data) {
+          if (!data.title) throw new Error('Titre requis');
+          await Api.updateTask(id, {
+            title: data.title,
+            description: data.description || null,
+            priority: data.priority,
+            service: data.service || null,
+            assigned_to_id: data.assigned_to_id ? parseInt(data.assigned_to_id) : null,
+            room_id: data.room_id ? parseInt(data.room_id) : null,
+          });
+          Toast.success('Tâche modifiée');
+          await self.render();
+        }, 'Enregistrer');
+        return;
+      }
+      if (type === 'delete') {
+        Modal.confirm('Supprimer cette tâche ?', async function() {
+          try {
+            await Api.deleteTask(id);
+            Modal.close();
+            Toast.success('Tâche supprimée');
+            await self.render();
+          } catch(e) { Toast.error(e.message); }
+        }, 'Supprimer', true);
+        return;
+      }
+      if (type === 'pause') {
+        Modal.close(true);
+        Modal.form('Mettre en pause', [
+          { key: 'pause_reason', type: 'textarea', label: 'Raison de la pause', placeholder: 'Ex: En attente de pièce, consigne reçue...' },
+        ], async function(data) {
+          await Api.updateTask(id, { status: 'pause', pause_reason: data.pause_reason || null });
+          Toast.success('Tâche en pause');
+          await self.render();
+        }, 'Confirmer');
+        return;
+      }
+      if (type === 'refuse') {
+        Modal.close(true);
+        Modal.form('Refuser cette tâche', [
+          { key: 'validation_note', type: 'textarea', label: 'Motif du refus', placeholder: 'Ex: Travail incomplet, critères non respectés...' },
+        ], async function(data) {
+          await Api.updateTask(id, { status: 'refusee', validation_note: data.validation_note || null });
+          Toast.success('Tâche refusée');
+          await self.render();
+        }, 'Refuser');
+        return;
+      }
       await Api.updateTask(id, { status: map[type] });
       Modal.close();
       Toast.success('Tâche mise à jour');

@@ -112,7 +112,8 @@ const RoundsPage = {
       const cls = rr.status === 'fait' ? 'done' : rr.status === 'refuse' ? 'skip' : '';
       const actionBtns = rr.status === 'en_attente' || rr.status === 'en_cours' ? `
         <button class="btn btn-success btn-sm" onclick="RoundsPage.stepAction(${rnd.id},${rr.id},'fait')">✓</button>
-        <button class="btn btn-danger btn-sm" onclick="RoundsPage.stepAction(${rnd.id},${rr.id},'refuse')">✗</button>` : '';
+        <button class="btn btn-danger btn-sm" onclick="RoundsPage.stepAction(${rnd.id},${rr.id},'refuse')">✗</button>
+        <button class="btn btn-warning btn-sm" title="Signaler anomalie" onclick="RoundsPage.reportAnomaly(${rnd.id},${rr.id},${rr.room_id})">⚠️</button>` : '';
       return `<div class="round-step">
         <div class="step-num ${cls}">${icon}</div>
         <div style="flex:1">
@@ -156,4 +157,32 @@ const RoundsPage = {
       await this.render();
     } catch(e) { Toast.error(e.message); }
   },
+
+  reportAnomaly(roundId, rrId, roomId) {
+    var room = this.rooms.find(function(r) { return r.id === roomId; });
+    var roomLabel = room ? 'Ch. ' + room.number : 'Chambre #' + roomId;
+    Modal.close();
+    Modal.form('Signaler une anomalie — ' + roomLabel, [
+      { key: 'title',       label: 'Anomalie *',  value: 'Anomalie ' + roomLabel, placeholder: 'Ex: Fuite robinet, ampoule grillée…' },
+      { key: 'description', label: 'Description', value: '', placeholder: 'Détails de l\'anomalie constatée…' },
+      { key: 'priority',    label: 'Priorité',    value: 'normale', type: 'select',
+        options: [{value:'basse',label:'Basse'},{value:'normale',label:'Normale'},{value:'haute',label:'Haute'},{value:'urgente',label:'Urgente'}] },
+    ], async function(data) {
+      if (!data.title) throw new Error('Titre requis');
+      await Api.createIntervention({
+        title: data.title,
+        description: data.description || null,
+        priority: data.priority || 'normale',
+        source: 'staff',
+        zone: null, zone_id: null,
+        room_id: roomId || null,
+      });
+      // Marquer la chambre comme refusée (anomalie constatée)
+      try { await Api.updateRoundRoom(roundId, rrId, { status: 'refuse' }); } catch(_) {}
+      Toast.success('Anomalie signalée — intervention créée');
+      App.navigate('interventions');
+    });
+  },
+
+  destroy: function() {},
 };

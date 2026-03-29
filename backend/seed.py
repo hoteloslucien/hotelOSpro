@@ -14,6 +14,7 @@ def run():
             ("users", "view", "Voir les utilisateurs"),
             ("users", "create", "Créer un utilisateur"),
             ("users", "update", "Modifier un utilisateur"),
+            ("users", "delete", "Supprimer un utilisateur"),
             ("rooms", "view", "Voir les chambres"),
             ("rooms", "create", "Créer une chambre"),
             ("rooms", "update", "Modifier une chambre"),
@@ -38,6 +39,8 @@ def run():
             ("attendance", "view", "Voir la présence"),
             ("attendance", "start", "Démarrer un poste"),
             ("attendance", "finish", "Terminer un poste"),
+            ("attendance", "team", "Voir la vue équipe"),
+            ("attendance", "manage", "Gérer les postes de l'équipe"),
             ("conversations", "view", "Voir les conversations"),
             ("conversations", "create", "Créer une conversation"),
             ("conversations", "update", "Modifier une conversation"),
@@ -67,6 +70,7 @@ def run():
             ("zones", "update", "Modifier une zone"),
             ("zones", "delete", "Supprimer une zone"),
             ("roles", "view", "Voir les rôles"),
+            ("roles", "create", "Créer un rôle"),
             ("roles", "update", "Modifier les rôles"),
         ]
 
@@ -114,6 +118,8 @@ def run():
                     "rounds.update",
                     "rounds.run",
                     "attendance.view",
+                    "attendance.team",
+                    "attendance.manage",
                     "messages.view",
                     "messages.send",
                     "conversations.view",
@@ -155,6 +161,7 @@ def run():
                     "rounds.view",
                     "rounds.run",
                     "attendance.view",
+                    "attendance.team",
                     "messages.view",
                     "messages.send",
                     "conversations.view",
@@ -239,6 +246,8 @@ def run():
                     "tasks.validate",
                     "tasks.refuse",
                     "attendance.view",
+                    "attendance.team",
+                    "attendance.manage",
                     "messages.view",
                     "messages.send",
                     "conversations.view",
@@ -259,6 +268,7 @@ def run():
                     "tasks.update",
                     "tasks.assign",
                     "attendance.view",
+                    "attendance.team",
                     "messages.view",
                     "messages.send",
                     "conversations.view",
@@ -301,6 +311,8 @@ def run():
                     "reviews.update",
                     "notifications.view",
                     "attendance.view",
+                    "attendance.team",
+                    "attendance.manage",
                     "zones.view",
                 ],
             },
@@ -431,6 +443,112 @@ def run():
                 is_active=True,
             )
             db.add(user)
+
+        db.commit()
+
+        # ── Familles et types d'équipements de base ───────────────────
+        families_data = [
+            {"code": "CLIM",    "name": "Climatisation",         "sort_order": 1},
+            {"code": "ELEC",    "name": "Électricité",            "sort_order": 2},
+            {"code": "PLOMB",   "name": "Plomberie",              "sort_order": 3},
+            {"code": "SECU",    "name": "Sécurité",               "sort_order": 4},
+            {"code": "ASCENS",  "name": "Ascenseurs",             "sort_order": 5},
+            {"code": "INCEND",  "name": "Incendie",               "sort_order": 6},
+            {"code": "CHAUF",   "name": "Chauffage",              "sort_order": 7},
+            {"code": "CUISINE", "name": "Cuisine / Restauration", "sort_order": 8},
+            {"code": "LINGE",   "name": "Lingerie",               "sort_order": 9},
+            {"code": "DIVERS",  "name": "Divers",                 "sort_order": 10},
+        ]
+        types_data = [
+            ("CLIM",   "SPLIT",      "Split mural"),
+            ("CLIM",   "CTA",        "Centrale de traitement d'air"),
+            ("CLIM",   "VMC",        "VMC"),
+            ("ELEC",   "TABLEAU",    "Tableau électrique"),
+            ("ELEC",   "GROUPE",     "Groupe électrogène"),
+            ("ELEC",   "ECLAIRAGE",  "Éclairage"),
+            ("PLOMB",  "CHAUFFE_EAU","Chauffe-eau"),
+            ("PLOMB",  "ROBINETTERIE","Robinetterie"),
+            ("PLOMB",  "POMPE",      "Pompe"),
+            ("SECU",   "CAMERA",     "Caméra"),
+            ("SECU",   "CONTROLE",   "Contrôle d'accès"),
+            ("ASCENS", "ASCENSEUR",  "Ascenseur"),
+            ("INCEND", "EXTINCTEUR", "Extincteur"),
+            ("INCEND", "DETECTEUR",  "Détecteur"),
+            ("CHAUF",  "CHAUDIERE",  "Chaudière"),
+            ("CHAUF",  "RADIATEUR",  "Radiateur"),
+            ("CUISINE","FOUR",       "Four"),
+            ("CUISINE","FRIGO",      "Réfrigérateur / Chambre froide"),
+            ("LINGE",  "MACHINE",    "Machine à laver"),
+            ("LINGE",  "SECHE",      "Sèche-linge"),
+            ("DIVERS", "AUTRE",      "Autre équipement"),
+        ]
+
+        fam_map = {}
+        for f in families_data:
+            existing = db.query(models.EquipmentFamily).filter(models.EquipmentFamily.code == f["code"]).first()
+            if not existing:
+                existing = models.EquipmentFamily(code=f["code"], name=f["name"], sort_order=f["sort_order"])
+                db.add(existing)
+                db.flush()
+            fam_map[f["code"]] = existing
+
+        for fam_code, type_code, type_name in types_data:
+            fam = fam_map.get(fam_code)
+            if not fam:
+                continue
+            existing_t = db.query(models.EquipmentType).filter(models.EquipmentType.code == type_code).first()
+            if not existing_t:
+                db.add(models.EquipmentType(family_id=fam.id, code=type_code, name=type_name, is_active=True))
+
+        # ── Catégories de tâches (par hôtel) ─────────────────────────────
+        task_categories_data = [
+            {"name": "Ménage",       "code": "MENAGE",       "color": "#10B981"},
+            {"name": "Maintenance",  "code": "MAINTENANCE",  "color": "#F59E0B"},
+            {"name": "Linge",        "code": "LINGE",        "color": "#6366F1"},
+            {"name": "Réception",    "code": "RECEPTION",    "color": "#3B82F6"},
+            {"name": "Cuisine",      "code": "CUISINE",      "color": "#EF4444"},
+            {"name": "Technique",    "code": "TECHNIQUE",    "color": "#64748B"},
+            {"name": "Direction",    "code": "DIRECTION",    "color": "#8B5CF6"},
+            {"name": "Autre",        "code": "AUTRE",        "color": "#94A3B8"},
+        ]
+        all_hotels = db.query(models.Hotel).filter(models.Hotel.is_active == True).all()
+        for hotel in all_hotels:
+            for tc in task_categories_data:
+                existing_tc = db.query(models.TaskCategory).filter(
+                    models.TaskCategory.code == tc["code"],
+                    models.TaskCategory.hotel_id == hotel.id
+                ).first()
+                if not existing_tc:
+                    db.add(models.TaskCategory(
+                        hotel_id=hotel.id,
+                        name=tc["name"], code=tc["code"],
+                        color=tc["color"], is_active=True
+                    ))
+
+        # ── Types d'interventions (par hôtel) ─────────────────────────────
+        intervention_types_data = [
+            {"name": "Plomberie",                "code": "PLOMB"},
+            {"name": "Électricité",              "code": "ELEC"},
+            {"name": "Climatisation / Chauffage","code": "CVC"},
+            {"name": "Menuiserie / Serrurerie",  "code": "MENUISER"},
+            {"name": "Peinture / Revêtement",    "code": "PEINTURE"},
+            {"name": "Ascenseur",                "code": "ASCENS"},
+            {"name": "Incendie / Sécurité",      "code": "SECU_INCEND"},
+            {"name": "Informatique / Télécoms",  "code": "INFOTEL"},
+            {"name": "Espaces verts / Piscine",  "code": "ESPVERTS"},
+            {"name": "Autre",                    "code": "AUTRE_INV"},
+        ]
+        for hotel in all_hotels:
+            for it in intervention_types_data:
+                existing_it = db.query(models.InterventionType).filter(
+                    models.InterventionType.code == it["code"],
+                    models.InterventionType.hotel_id == hotel.id
+                ).first()
+                if not existing_it:
+                    db.add(models.InterventionType(
+                        hotel_id=hotel.id,
+                        name=it["name"], code=it["code"], is_active=True
+                    ))
 
         db.commit()
 

@@ -1,7 +1,18 @@
 /* Hotel OS — Dashboard V2 Premium — Présence + Équipe + Rôle adapté */
 const DashboardPage = {
 
+  _pollInterval: null,
+
   async render() {
+    if (this._pollInterval) { clearInterval(this._pollInterval); this._pollInterval = null; }
+    await this._load();
+    // Rafraîchir les stats toutes les 60 secondes si la page est active
+    this._pollInterval = setInterval(() => {
+      if (App._currentPage === 'dashboard') this._load();
+    }, 30000);
+  },
+
+  async _load() {
     const el = document.getElementById('page-content');
     if (!el) return;
 
@@ -35,26 +46,41 @@ const DashboardPage = {
           myShift = results[3], unreadData = results[4] || {},
           teamShifts = isManager ? (results[5] || []) : [];
 
-      var urgent = this._n(s.interventions_nouvelles) + this._n(s.tasks_urgentes);
+      var urgent = this._n(s.interventions_nouvelles) + this._n(s.interventions_en_cours) + this._n(s.tasks_urgentes);
       var unread = this._n(unreadData.unread);
       var activity = this._buildActivity(recentInterv, recentTasks);
 
       var h = '<div class="dashboard">';
-      h += '<div class="dashboard-header"><h1>' + greet + ', ' + firstName + ' 👋</h1><p>' + dateStr + '</p></div>';
+      h += '<div class="dashboard-header">'
+        + '<div><h1>' + greet + ', ' + firstName + ' 👋</h1><p>' + dateStr + '</p></div>'
+        + '<button class="btn btn-secondary btn-sm" id="dash-refresh-btn" title="Actualiser" style="flex-shrink:0">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
+        + '</div></div>';
 
-      // ── Carte présence personnelle ──
+      // ── Présence personnelle ──
       if (myShift && myShift.status) {
         h += this._renderMyShiftCard(myShift);
       } else {
-        h += '<div class="dash-shift-card"><div class="dash-shift-header">' +
-          '<div class="dash-shift-status"><span class="dash-shift-dot" style="background:var(--text-3)"></span>' +
-          '<span style="color:var(--text-3);font-weight:700;font-size:13px">Aucun poste prévu</span></div></div></div>';
+        h += '<div class="dash-shift-card"><div class="dash-shift-header">'
+          + '<div class="dash-shift-status"><span class="dash-shift-dot" style="background:var(--text-3)"></span>'
+          + '<span style="color:var(--text-3);font-weight:700;font-size:13px">Aucun poste prévu</span></div></div></div>';
       }
 
       // ── Priorités ──
       h += '<div class="dash-section-title">Priorités</div>';
       h += '<div class="priority-card"><div class="priority-pill"><span class="priority-dot' + (urgent > 0 ? ' urgent' : '') + '"></span>';
-      h += '<span>' + (urgent > 0 ? urgent + ' élément' + (urgent > 1 ? 's' : '') + ' urgent' + (urgent > 1 ? 's' : '') : 'Tout est à jour ✓') + '</span>';
+      if (urgent > 0) {
+        var parts = [];
+        var ni = this._n(s.interventions_nouvelles);
+        var ci = this._n(s.interventions_en_cours);
+        var ut = this._n(s.tasks_urgentes);
+        if (ni > 0) parts.push(ni + ' intervention' + (ni > 1 ? 's' : '') + ' nouvelle' + (ni > 1 ? 's' : ''));
+        if (ci > 0) parts.push(ci + ' en cours');
+        if (ut > 0) parts.push(ut + ' tâche' + (ut > 1 ? 's' : '') + ' urgente' + (ut > 1 ? 's' : ''));
+        h += '<span>' + parts.join(' · ') + '</span>';
+      } else {
+        h += '<span>Tout est à jour ✓</span>';
+      }
       h += '</div></div>';
 
       // ── Équipe du jour (managers) ──
@@ -75,7 +101,7 @@ const DashboardPage = {
         unread > 0 ? unread + ' non lu' + (unread > 1 ? 's' : '') : 'Messagerie',
         unread > 0 ? 'badge-red-soft' : 'badge-blue-soft');
       h += this._actionCard('rooms', '🛏️', 'Chambres',
-        this._n(s.rooms_libre) + ' libre' + (this._n(s.rooms_libre) > 1 ? 's' : ''),
+        this._n(s.rooms_libre) + '/' + this._n(s.rooms_total) + ' libre' + (this._n(s.rooms_libre) > 1 ? 's' : ''),
         'badge-green-soft');
 
       // Extra cards for managers
@@ -124,6 +150,16 @@ const DashboardPage = {
       h += '</div></div>';
 
       el.innerHTML = h;
+
+      // Bind refresh button
+      var refreshBtn = document.getElementById('dash-refresh-btn');
+      if (refreshBtn) refreshBtn.addEventListener('click', function() {
+        refreshBtn.style.opacity = '0.4';
+        DashboardPage._load().then(function() {
+          var rb = document.getElementById('dash-refresh-btn');
+          if (rb) rb.style.opacity = '';
+        });
+      });
 
       // Bind activity item deep-link clicks
       el.querySelectorAll('[data-dash-page]').forEach(function(item) {
@@ -271,5 +307,9 @@ const DashboardPage = {
 
   _esc: function(v) {
     return String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
+  },
+
+  destroy: function() {
+    if (this._pollInterval) { clearInterval(this._pollInterval); this._pollInterval = null; }
+  },
 };

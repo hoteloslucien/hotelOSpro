@@ -15,6 +15,7 @@ const StockPage = {
   _draw() {
     const self = this;
     const lowCount = this.items.filter(i => i.quantity <= i.threshold_min).length;
+    const canDelete = App.has ? App.has('stock.update') || App.has('stock.create') : true;
 
     // Get unique categories
     const cats = ['all'];
@@ -37,11 +38,13 @@ const StockPage = {
           <div class="list-item-title">${item.name}</div>
           <div class="list-item-sub">${item.category || '—'} · ${item.location || '—'}</div>
         </div>
-        <div class="list-item-right">
+        <div class="list-item-right" style="gap:6px">
           <div style="font-size:16px;font-weight:700;color:${low ? 'var(--red)' : 'var(--navy)'}">
             ${item.quantity} <span style="font-size:11px;font-weight:400;color:#6B7280">${item.unit}</span>
           </div>
           ${low ? '<span class="badge badge-urgente">Stock bas</span>' : ''}
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();StockPage.editItem(${item.id})">✏️</button>
+          ${canDelete ? `<button class="btn btn-sm" style="color:var(--danger)" onclick="event.stopPropagation();StockPage.deleteItem(${item.id})">🗑</button>` : ''}
         </div>
       </div>`;
     }).join('') : Utils.emptyState('📦', 'Aucun article en stock');
@@ -84,16 +87,34 @@ const StockPage = {
         threshold_min: parseFloat(data.threshold_min) || 5,
         unit_cost: parseFloat(data.unit_cost) || 0,
         location: data.location,
+        is_active: true,
       });
       Toast.success('Article ajouté');
       await this.render();
     });
   },
 
-  open(id) {
+  async open(id) {
     const item = this.items.find(x => x.id === id);
     if (!item) return;
     const low = item.quantity <= item.threshold_min;
+
+    // Charger historique des mouvements
+    let history = [];
+    try { history = await Api.stockMovements(id); } catch(_) {}
+
+    const histHtml = history.length > 0
+      ? '<div style="margin-top:16px"><div class="dash-section-title">Historique</div>' +
+        history.slice(0, 8).map(function(mv) {
+          const sign = mv.type === 'entree' ? '+' : mv.type === 'inventaire' ? '=' : '-';
+          const col  = mv.type === 'entree' ? 'var(--success)' : mv.type === 'inventaire' ? 'var(--warning)' : 'var(--danger)';
+          return '<div class="activity-item">' +
+            '<div class="activity-avatar" style="background:rgba(0,0,0,.04);font-size:13px;font-weight:700;color:' + col + '">' + sign + '</div>' +
+            '<div class="activity-body"><div class="activity-title">' + mv.type + (mv.note ? ' — ' + mv.note : '') + '</div></div>' +
+            '<div class="activity-time" style="color:' + col + ';font-weight:700">' + sign + mv.quantity + ' ' + item.unit + '</div>' +
+            '</div>';
+        }).join('') + '</div>'
+      : '';
 
     Modal.open(item.name, `
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
@@ -123,7 +144,8 @@ const StockPage = {
       <div class="form-group">
         <label>Note (optionnel)</label>
         <input type="text" id="mv-note" placeholder="Ex: Utilisé intervention #12" />
-      </div>`,
+      </div>
+      ${histHtml}`,
       `<button class="btn btn-secondary" onclick="Modal.close()">Annuler</button>
        <button class="btn btn-primary" onclick="StockPage.move(${id})">Valider mouvement</button>`
     );
@@ -140,4 +162,62 @@ const StockPage = {
       await this.render();
     } catch(e) { Toast.error(e.message); }
   },
+
+  deleteItem(id) {
+    const item = this.items.find(x => x.id === id);
+    if (!item) return;
+    Modal.confirm('Supprimer "' + item.name + '" du stock ?', async () => {
+      try {
+        await Api.deleteStockItem(id);
+        Toast.success('Article supprimé');
+        await this.render();
+      } catch(e) { Toast.error(e.message); }
+    }, 'Supprimer', true);
+  },
+
+  editItem(id) {
+    const item = this.items.find(x => x.id === id);
+    if (!item) return;
+    const self = this;
+    const unitOpts = ['unite','kg','g','litre','ml','boite','rouleau','sac','palette','autre']
+      .map(u => `<option value="${u}" ${item.unit === u ? 'selected' : ''}>${u.charAt(0).toUpperCase() + u.slice(1)}</option>`)
+      .join('');
+
+    Modal.open('Modifier — ' + item.name, `
+      <div class="form-group"><label>Nom *</label>
+        <input type="text" id="ei-name" value="${item.name || ''}" /></div>
+      <div class="form-group"><label>Catégorie</label>
+        <input type="text" id="ei-category" value="${item.category || ''}" placeholder="Ex: nettoyage, hygiène" /></div>
+      <div class="form-group"><label>Unité</label>
+        <select id="ei-unit">${unitOpts}</select></div>
+      <div class="form-group"><label>Seuil d'alerte</label>
+        <input type="number" id="ei-threshold" value="${item.threshold_min}" min="0" step="0.5" /></div>
+      <div class="form-group"><label>Emplacement</label>
+        <input type="text" id="ei-location" value="${item.location || ''}" placeholder="Ex: Réserve sous-sol" /></div>
+      <div class="form-group"><label>Coût unitaire (€)</label>
+        <input type="number" id="ei-cost" value="${item.unit_cost || 0}" min="0" step="0.01" /></div>`,
+      `<button class="btn btn-secondary" onclick="Modal.close()">Annuler</button>
+       <button class="btn btn-primary" onclick="StockPage.saveItem(${id})">Enregistrer</button>`
+    );
+  },
+
+  async saveItem(id) {
+    try {
+      const name = document.getElementById('ei-name').value.trim();
+      if (!name) throw new Error('Nom requis');
+      await Api.updateStockItem(id, {
+        name,
+        category: document.getElementById('ei-category').value.trim() || null,
+        unit: document.getElementById('ei-unit').value,
+        threshold_min: parseFloat(document.getElementById('ei-threshold').value) || 5,
+        location: document.getElementById('ei-location').value.trim() || null,
+        unit_cost: parseFloat(document.getElementById('ei-cost').value) || 0,
+      });
+      Modal.close();
+      Toast.success('Article modifié');
+      await this.render();
+    } catch(e) { Toast.error(e.message); }
+  },
+
+  destroy: function() { this.catFilter = 'all'; this.showLow = false; },
 };

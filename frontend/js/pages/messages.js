@@ -1,5 +1,2 @@
-/* Hotel OS — messages.js — Redirige vers ConversationsPage (WhatsApp V2) */
-const MessagesPage = {
-  render() { ConversationsPage.render(); },
-  destroy() { ConversationsPage.destroy(); }
-};
+/* Hotel OS — messages.js — redirige vers ConversationsPage */
+// Ce module est un alias — la messagerie est gérée par conversations.js

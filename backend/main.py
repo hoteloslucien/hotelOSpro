@@ -10,13 +10,7 @@ Prod   : gunicorn backend.main:app -w 2 -k uvicorn.workers.UvicornWorker
 import os
 from pathlib import Path
 
-print("!! MAIN LOADED")
-
 from fastapi import FastAPI
-from  backend.routers_settings import settings_router
-
-
-
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -42,11 +36,13 @@ def ensure_bootstrap_data():
                 models_roles.RolePermission.role_id == direction_role.id
             ).first() is not None
 
-        has_admin = db.query(models.User).filter(
-            models.User.email == "admin@hotel.fr"
+        # Vérifier qu'il existe au moins un utilisateur direction (pas admin@hotel.fr spécifiquement)
+        has_direction_user = db.query(models.User).filter(
+            models.User.role == "direction",
+            models.User.is_active == True
         ).first() is not None
 
-        if direction_role and has_permissions and has_direction_perms and has_admin:
+        if direction_role and has_permissions and has_direction_perms and has_direction_user:
             return
     finally:
         db.close()
@@ -59,8 +55,6 @@ Base.metadata.create_all(bind=engine)
 ensure_bootstrap_data()
 
 app = FastAPI(title="Hotel OS", version="1.0.0")
-
-app.include_router(settings_router)
 
 # CORS — * en dev, restreindre via ALLOWED_ORIGINS en production
 # Ex: ALLOWED_ORIGINS=https://mon-hotel.railway.app,https://mon-hotel.onrender.com

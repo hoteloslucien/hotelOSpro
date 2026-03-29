@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timezone
 from typing import List, Optional
+from pydantic import BaseModel
 import secrets
 
 from .database import get_db
@@ -58,22 +59,84 @@ def switch_hotel(hotel_id: int, db: Session = Depends(get_db), me: models.User =
 def me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
+class MeUpdate(BaseModel):
+    name: Optional[str] = None
+    service: Optional[str] = None
+    password: Optional[str] = None
+
+@auth_router.patch("/me", response_model=schemas.UserOut)
+def update_me(data: MeUpdate, db: Session = Depends(get_db),
+              current_user: models.User = Depends(get_current_user)):
+    if data.name: current_user.name = data.name
+    if data.service: current_user.service = data.service
+    if data.password:
+        if len(data.password) < 6: raise HTTPException(400, "Mot de passe trop court (6 caractères min)")
+        current_user.password_hash = hash_password(data.password)
+    db.commit(); db.refresh(current_user)
+    return current_user
+
 
 users_router = APIRouter(prefix="/users", tags=["Users"])
 
 @users_router.get("", response_model=List[schemas.UserOut])
-def list_users(db: Session = Depends(get_db),
+def list_users(include_inactive: bool = False, db: Session = Depends(get_db),
                current_user: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
-    return db.query(models.User).filter(models.User.is_active == True).all()
+    q = db.query(models.User)
+    if not include_inactive:
+        q = q.filter(models.User.is_active == True)
+    return q.order_by(models.User.name).all()
 
 @users_router.patch("/{user_id}/deactivate")
 def deactivate_user(user_id: int, db: Session = Depends(get_db),
-                    current_user: models.User = Depends(require_roles("direction"))):
+                    current_user: models.User = Depends(require_roles("direction","responsable"))):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user: raise HTTPException(404, "Utilisateur introuvable")
+    if user.id == current_user.id: raise HTTPException(400, "Impossible de se désactiver soi-même")
     user.is_active = False
     db.commit()
     return {"message": "Utilisateur désactivé"}
+
+@users_router.patch("/{user_id}/activate")
+def activate_user(user_id: int, db: Session = Depends(get_db),
+                  current_user: models.User = Depends(require_roles("direction","responsable"))):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user: raise HTTPException(404, "Utilisateur introuvable")
+    user.is_active = True
+    db.commit()
+    return {"message": "Utilisateur activé"}
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+    service: Optional[str] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = None
+
+@users_router.patch("/{user_id}", response_model=schemas.UserOut)
+def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db),
+                current_user: models.User = Depends(require_roles("direction","responsable"))):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user: raise HTTPException(404, "Utilisateur introuvable")
+    if data.name: user.name = data.name
+    if data.role: user.role = data.role
+    if data.service is not None: user.service = data.service
+    if data.is_active is not None:
+        if data.is_active == False and user.id == current_user.id:
+            raise HTTPException(400, "Impossible de se désactiver soi-même")
+        user.is_active = data.is_active
+    if data.password:
+        if len(data.password) < 6: raise HTTPException(400, "Mot de passe trop court (6 caractères min)")
+        user.password_hash = hash_password(data.password)
+    db.commit(); db.refresh(user)
+    return user
+
+@users_router.delete("/{user_id}", status_code=204)
+def delete_user(user_id: int, db: Session = Depends(get_db),
+                current_user: models.User = Depends(require_roles("direction"))):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user: raise HTTPException(404, "Utilisateur introuvable")
+    if user.id == current_user.id: raise HTTPException(400, "Impossible de supprimer son propre compte")
+    db.delete(user); db.commit()
 
 
 # ── Rooms ─────────────────────────────────────────────────────────────────────
@@ -114,17 +177,17 @@ def update_room(room_id: int, data: schemas.RoomUpdate, db: Session = Depends(ge
                 current_user: models.User = Depends(get_current_user)):
     room = db.query(models.Room).filter(models.Room.id == room_id).first()
     if not room: raise HTTPException(404, "Chambre introuvable")
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     old_status = room.status
-    
+
     data_dict = data.model_dump(exclude_none=True)
     for k, v in data_dict.items():
         setattr(room, k, v)
 
     if data.status == "prete":
         room.last_cleaned = datetime.now(timezone.utc)
-    # Notify reception when room is blocked by non-reception
     if data.status == "bloquee" and old_status != "bloquee" and current_user.role not in ("reception", "direction"):
-        notify_role(db, "reception", hotel_id=current_user.hotel_id,
+        notify_role(db, "reception", hotel_id=active_hotel,
                     type="room_block_request", title="Demande blocage ch. " + room.number,
                     message=current_user.name + " demande le blocage de la chambre " + room.number,
                     entity_type="room", entity_id=room.id, priority="high",
@@ -141,9 +204,12 @@ def get_qr_token(room_id: int, db: Session = Depends(get_db),
 
 @rooms_router.delete("/{room_id}", status_code=204)
 def delete_room(room_id: int, db: Session = Depends(get_db),
-                _: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+                current_user: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     room = db.query(models.Room).filter(models.Room.id == room_id).first()
     if not room: raise HTTPException(404, "Chambre introuvable")
+    if active_hotel and room.hotel_id and room.hotel_id != active_hotel:
+        raise HTTPException(403, "Accès refusé — chambre d'un autre hôtel")
     db.delete(room); db.commit()
 
 
@@ -170,6 +236,20 @@ def create_task(data: schemas.TaskCreate, db: Session = Depends(get_db),
     active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     task = models.Task(**data.model_dump(), created_by_id=current_user.id, hotel_id=active_hotel)
     db.add(task); db.commit(); db.refresh(task)
+    # Notifier la personne assignée si différente du créateur
+    if task.assigned_to_id and task.assigned_to_id != current_user.id:
+        notify(db, hotel_id=active_hotel, user_id=task.assigned_to_id,
+               type="task_assigned", title="Tâche assignée",
+               message=f"Nouvelle tâche assignée : {task.title}",
+               entity_type="task", entity_id=task.id, priority="medium")
+    # Notifier les responsables si tâche urgente
+    if task.priority == "urgente":
+        notify_role(db, "responsable", hotel_id=active_hotel,
+                    type="task_assigned", title="Tâche urgente",
+                    message=f"Tâche urgente créée : {task.title}",
+                    entity_type="task", entity_id=task.id, priority="high",
+                    exclude_user_id=current_user.id)
+    db.commit()
     return task
 
 @tasks_router.patch("/{task_id}", response_model=schemas.TaskOut)
@@ -177,6 +257,7 @@ def update_task(task_id: int, data: schemas.TaskUpdate, db: Session = Depends(ge
                 current_user: models.User = Depends(get_current_user)):
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task: raise HTTPException(404, "Tâche introuvable")
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(task, k, v)
     now = datetime.now(timezone.utc)
@@ -186,9 +267,8 @@ def update_task(task_id: int, data: schemas.TaskUpdate, db: Session = Depends(ge
         task.completed_at = now
     elif data.status == "validee":
         task.validated_at = now
-    # Notify assigned user
     if data.assigned_to_id and data.assigned_to_id != current_user.id:
-        notify(db, hotel_id=current_user.hotel_id, user_id=data.assigned_to_id,
+        notify(db, hotel_id=active_hotel, user_id=data.assigned_to_id,
                type="task_assigned", title="Tâche assignée",
                message=task.title, entity_type="task", entity_id=task.id, priority="medium")
     db.commit(); db.refresh(task)
@@ -196,9 +276,12 @@ def update_task(task_id: int, data: schemas.TaskUpdate, db: Session = Depends(ge
 
 @tasks_router.delete("/{task_id}", status_code=204)
 def delete_task(task_id: int, db: Session = Depends(get_db),
-                _: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+                current_user: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task: raise HTTPException(404, "Tâche introuvable")
+    if active_hotel and task.hotel_id and task.hotel_id != active_hotel:
+        raise HTTPException(403, "Accès refusé — tâche d'un autre hôtel")
     db.delete(task); db.commit()
 
 
@@ -243,8 +326,8 @@ def update_intervention(inv_id: int, data: schemas.InterventionUpdate,
                         current_user: models.User = Depends(get_current_user)):
     inv = db.query(models.Intervention).filter(models.Intervention.id == inv_id).first()
     if not inv: raise HTTPException(404, "Intervention introuvable")
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
 
-    # Validate status transitions
     VALID_TRANSITIONS = {
         "nouvelle":    ["en_attente", "en_cours", "prise", "cloturee", "duplicate"],
         "en_attente":  ["en_cours", "prise", "cloturee", "duplicate"],
@@ -269,14 +352,12 @@ def update_intervention(inv_id: int, data: schemas.InterventionUpdate,
             inv.taken_by_id = current_user.id
     elif data.status == "cloturee" and not inv.completed_at:
         inv.completed_at = now
-        # Notify creator that intervention is closed
         if inv.created_by_id and inv.created_by_id != current_user.id:
-            notify(db, hotel_id=current_user.hotel_id, user_id=inv.created_by_id,
+            notify(db, hotel_id=active_hotel, user_id=inv.created_by_id,
                    type="intervention_closed", title="Intervention clôturée",
                    message=inv.title, entity_type="intervention", entity_id=inv.id, priority="low")
-    # Notify assigned user if changed
     if data.taken_by_id and data.taken_by_id != current_user.id:
-        notify(db, hotel_id=current_user.hotel_id, user_id=data.taken_by_id,
+        notify(db, hotel_id=active_hotel, user_id=data.taken_by_id,
                type="intervention_assigned", title="Intervention assignée",
                message=inv.title, entity_type="intervention", entity_id=inv.id, priority="high")
     db.commit(); db.refresh(inv)
@@ -289,10 +370,17 @@ def take_intervention(inv_id: int, db: Session = Depends(get_db),
     if not inv: raise HTTPException(404, "Intervention introuvable")
     if inv.status not in ("nouvelle", "en_attente"):
         raise HTTPException(400, "Cette intervention ne peut plus être prise")
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     inv.taken_by_id = current_user.id
     inv.status = "en_cours"
     inv.started_at = datetime.now(timezone.utc)
     db.commit(); db.refresh(inv)
+    if inv.created_by_id and inv.created_by_id != current_user.id:
+        notify(db, hotel_id=active_hotel, user_id=inv.created_by_id,
+               type="intervention_taken", title="Intervention prise en charge",
+               message=inv.title + " prise par " + current_user.name,
+               entity_type="intervention", entity_id=inv.id, priority="low")
+        db.commit()
     return inv
 
 @interventions_router.post("/{inv_id}/close", response_model=schemas.InterventionOut)
@@ -304,13 +392,13 @@ def close_intervention(inv_id: int, payload: schemas.InterventionClose,
     if not inv: raise HTTPException(404, "Intervention introuvable")
     if inv.status == "cloturee": raise HTTPException(400, "Déjà clôturée")
     if inv.status == "duplicate": raise HTTPException(400, "Un doublon ne peut pas être clôturé")
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     inv.status = "cloturee"
     inv.resolution_note = payload.resolution_note
     if payload.cost is not None: inv.cost = payload.cost
     inv.completed_at = datetime.now(timezone.utc)
-    # Notify creator
     if inv.created_by_id and inv.created_by_id != current_user.id:
-        notify(db, hotel_id=current_user.hotel_id, user_id=inv.created_by_id,
+        notify(db, hotel_id=active_hotel, user_id=inv.created_by_id,
                type="intervention_closed", title="Intervention clôturée",
                message=inv.title, entity_type="intervention", entity_id=inv.id, priority="low")
     db.commit(); db.refresh(inv)
@@ -325,6 +413,7 @@ def mark_duplicate(inv_id: int, payload: schemas.InterventionMarkDuplicate,
     parent = db.query(models.Intervention).filter(models.Intervention.id == payload.duplicate_of_id).first()
     if not parent: raise HTTPException(404, "Intervention principale introuvable")
     if inv.id == parent.id: raise HTTPException(400, "Une intervention ne peut pas être son propre doublon")
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     inv.is_duplicate = True
     inv.duplicate_of_id = payload.duplicate_of_id
     inv.duplicate_reason = payload.duplicate_reason
@@ -332,9 +421,8 @@ def mark_duplicate(inv_id: int, payload: schemas.InterventionMarkDuplicate,
     inv.duplicate_marked_at = datetime.now(timezone.utc)
     inv.status = "duplicate"
     db.commit(); db.refresh(inv)
-    # Notify creator of duplicated intervention
     if inv.created_by_id and inv.created_by_id != current_user.id:
-        notify(db, hotel_id=current_user.hotel_id, user_id=inv.created_by_id,
+        notify(db, hotel_id=active_hotel, user_id=inv.created_by_id,
                type="intervention_duplicate", title="Intervention marquée doublon",
                message=inv.title + " → doublon de #" + str(parent.id),
                entity_type="intervention", entity_id=inv.id, priority="low")
@@ -354,6 +442,16 @@ def unmark_duplicate(inv_id: int, db: Session = Depends(get_db),
     if inv.status == "duplicate": inv.status = "nouvelle"
     db.commit(); db.refresh(inv)
     return inv
+
+@interventions_router.delete("/{inv_id}", status_code=204)
+def delete_intervention(inv_id: int, db: Session = Depends(get_db),
+                        current_user: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    inv = db.query(models.Intervention).filter(models.Intervention.id == inv_id).first()
+    if not inv: raise HTTPException(404, "Intervention introuvable")
+    if active_hotel and inv.hotel_id and inv.hotel_id != active_hotel:
+        raise HTTPException(403, "Accès refusé — intervention d'un autre hôtel")
+    db.delete(inv); db.commit()
 
 
 # ── Rounds ────────────────────────────────────────────────────────────────────
@@ -501,6 +599,16 @@ def update_review(review_id: int, data: schemas.ReviewUpdate, db: Session = Depe
     db.commit(); db.refresh(review)
     return review
 
+@reviews_router.delete("/{review_id}", status_code=204)
+def delete_review(review_id: int, db: Session = Depends(get_db),
+                  current_user: models.User = Depends(require_roles("responsable","direction"))):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    review = db.query(models.ClientReview).filter(models.ClientReview.id == review_id).first()
+    if not review: raise HTTPException(404, "Avis introuvable")
+    if active_hotel and review.hotel_id and review.hotel_id != active_hotel:
+        raise HTTPException(403, "Accès refusé")
+    db.delete(review); db.commit()
+
 
 # ── Equipment ─────────────────────────────────────────────────────────────────
 
@@ -524,8 +632,10 @@ def list_types(family_id: Optional[int] = None, db: Session = Depends(get_db),
 def list_items(family_id: Optional[int] = None, type_id: Optional[int] = None,
                room_id: Optional[int] = None, status: Optional[str] = None,
                db: Session = Depends(get_db),
-               _: models.User = Depends(get_current_user)):
+               current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     q = db.query(models.EquipmentItem)
+    if active_hotel: q = q.filter(models.EquipmentItem.hotel_id == active_hotel)
     if family_id: q = q.filter(models.EquipmentItem.family_id == family_id)
     if type_id:   q = q.filter(models.EquipmentItem.type_id == type_id)
     if room_id:   q = q.filter(models.EquipmentItem.room_id == room_id)
@@ -535,8 +645,9 @@ def list_items(family_id: Optional[int] = None, type_id: Optional[int] = None,
 @equipment_router.post("/items", response_model=schemas.EquipmentItemOut, status_code=201)
 def create_item(payload: schemas.EquipmentItemCreate, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     item = models.EquipmentItem(
-        hotel_id=current_user.hotel_id or 1,
+        hotel_id=active_hotel,
         **payload.model_dump()
     )
     db.add(item); db.commit(); db.refresh(item)
@@ -547,12 +658,12 @@ def update_item(item_id: int, data: schemas.EquipmentItemUpdate, db: Session = D
                 current_user: models.User = Depends(get_current_user)):
     item = db.query(models.EquipmentItem).filter(models.EquipmentItem.id == item_id).first()
     if not item: raise HTTPException(404, "Équipement introuvable")
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     old_status = item.status
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(item, k, v)
-    # Notify if equipment goes to en_panne or hors_service
     if data.status and data.status in ("en_panne", "hors_service") and old_status not in ("en_panne", "hors_service"):
-        notify_role(db, "responsable", hotel_id=current_user.hotel_id,
+        notify_role(db, "responsable", hotel_id=active_hotel,
                     type="equipment_alert", title="Équipement en panne",
                     message=item.name, entity_type="equipment", entity_id=item.id,
                     priority="high", exclude_user_id=current_user.id)
@@ -561,9 +672,12 @@ def update_item(item_id: int, data: schemas.EquipmentItemUpdate, db: Session = D
 
 @equipment_router.delete("/items/{item_id}", status_code=204)
 def delete_item(item_id: int, db: Session = Depends(get_db),
-                _: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+                current_user: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     item = db.query(models.EquipmentItem).filter(models.EquipmentItem.id == item_id).first()
     if not item: raise HTTPException(404, "Équipement introuvable")
+    if active_hotel and item.hotel_id and item.hotel_id != active_hotel:
+        raise HTTPException(403, "Accès refusé — équipement d'un autre hôtel")
     db.delete(item); db.commit()
 
 # ── Equipment Legacy — GELÉ — ne plus utiliser ──────────────────────────────
@@ -621,9 +735,12 @@ def create_stock_item(data: schemas.StockItemCreate, db: Session = Depends(get_d
 
 @stock_router.patch("/items/{item_id}", response_model=schemas.StockItemOut)
 def update_stock_item(item_id: int, data: schemas.StockItemUpdate, db: Session = Depends(get_db),
-                      _: models.User = Depends(get_current_user)):
+                      current_user: models.User = Depends(get_current_user)):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     item = db.query(models.StockItem).filter(models.StockItem.id == item_id).first()
     if not item: raise HTTPException(404, "Article introuvable")
+    if active_hotel and item.hotel_id and item.hotel_id != active_hotel:
+        raise HTTPException(403, "Accès refusé — article d'un autre hôtel")
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(item, k, v)
     db.commit(); db.refresh(item)
@@ -631,9 +748,12 @@ def update_stock_item(item_id: int, data: schemas.StockItemUpdate, db: Session =
 
 @stock_router.delete("/items/{item_id}", status_code=204)
 def delete_stock_item(item_id: int, db: Session = Depends(get_db),
-                      _: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+                      current_user: models.User = Depends(require_roles("responsable","responsable_technique","direction"))):
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     item = db.query(models.StockItem).filter(models.StockItem.id == item_id).first()
     if not item: raise HTTPException(404, "Article introuvable")
+    if active_hotel and item.hotel_id and item.hotel_id != active_hotel:
+        raise HTTPException(403, "Accès refusé — article d'un autre hôtel")
     db.delete(item); db.commit()
 
 @stock_router.post("/movements", response_model=schemas.StockMovementOut, status_code=201)

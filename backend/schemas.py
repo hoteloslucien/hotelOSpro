@@ -124,6 +124,7 @@ class InterventionCreate(BaseModel):
     title: str
     description: Optional[str] = None
     zone: Optional[str] = None
+    zone_id: Optional[int] = None
     priority: str = "normale"
     source: str = "staff"
     room_id: Optional[int] = None
@@ -131,11 +132,14 @@ class InterventionCreate(BaseModel):
     equipment_item_id: Optional[int] = None
 
 class InterventionUpdate(BaseModel):
+    title: Optional[str] = None
     status: Optional[str] = None
     taken_by_id: Optional[int] = None
     resolution_note: Optional[str] = None
     cost: Optional[float] = None
     priority: Optional[str] = None
+    zone: Optional[str] = None
+    zone_id: Optional[int] = None
     equipment_item_id: Optional[int] = None
 
 class InterventionOut(BaseModel):
@@ -143,6 +147,7 @@ class InterventionOut(BaseModel):
     title: str
     description: Optional[str]
     zone: Optional[str]
+    zone_id: Optional[int] = None
     status: str
     priority: str
     source: str
@@ -394,6 +399,7 @@ class StockItemCreate(BaseModel):
     threshold_min: float = 5.0
     location: Optional[str] = None
     unit_cost: float = 0.0
+    is_active: bool = True
 
 class StockMovementCreate(BaseModel):
     item_id: int

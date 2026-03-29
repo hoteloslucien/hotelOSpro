@@ -98,20 +98,21 @@ const App = {
 
       this._shiftStart = new Date(sh.actual_start);
       this._shiftStatus = sh.status;
+
+      // Quand le poste est terminé : masquer le widget et stopper
+      if (sh.status === 'finished') {
+        widget.classList.add('hidden');
+        this._shiftStart = null;
+        return;
+      }
+
       widget.classList.remove('hidden');
-      widget.className = 'shift-timer-widget' + (
-        sh.status === 'on_break'
-          ? ' on-break'
-          : sh.status === 'finished'
-            ? ' finished'
-            : ''
-      );
+      widget.className = 'shift-timer-widget' + (sh.status === 'on_break' ? ' on-break' : '');
       widget.onclick = function () { App.navigate('attendance'); };
       this._tickShiftTimer();
 
-      if (sh.status !== 'finished') {
-        this._shiftTimerInterval = setInterval(() => this._tickShiftTimer(), 1000);
-      }
+      if (this._shiftTimerInterval) clearInterval(this._shiftTimerInterval);
+      this._shiftTimerInterval = setInterval(() => this._tickShiftTimer(), 1000);
     } catch (_) {}
   },
 
@@ -345,10 +346,10 @@ const App = {
 
     const initials = (u.name || '')
       .split(' ')
-      .map(n => n[0])
+      .map(n => n[0] || '')
       .join('')
       .toUpperCase()
-      .slice(0, 2);
+      .slice(0, 2) || '?';
 
     const headerUserName = document.getElementById('header-user-name');
     if (headerUserName) headerUserName.textContent = (u.name || '').split(' ')[0] || '';
@@ -360,7 +361,11 @@ const App = {
     if (menuRole) menuRole.textContent = Utils.label(u.role) + (u.service ? ' · ' + Utils.label(u.service) : '');
 
     const menuAvatar = document.getElementById('menu-avatar');
-    if (menuAvatar) menuAvatar.textContent = initials || '?';
+    if (menuAvatar) menuAvatar.textContent = initials;
+
+    // Update page title in header to current page
+    const headerTitle = document.getElementById('header-page-title');
+    if (headerTitle && !headerTitle.textContent) headerTitle.textContent = 'Dashboard';
   },
 
   _applyRoleFilter() {
@@ -555,6 +560,34 @@ if (firstAdv) {
       notifications: NotificationsPage,
     };
     return map[page] || null;
+  },
+
+  // ── Profil utilisateur ───────────────────────────────────────────
+  editProfile() {
+    const u = this.currentUser;
+    if (!u) return;
+    this.closeMenu();
+    Modal.form('Mon profil', [
+      { key: 'name',     label: 'Nom complet',    value: u.name || '',    placeholder: 'Votre nom' },
+      { key: 'service',  label: 'Service',         value: u.service || '', placeholder: 'Ex: Technique' },
+      { key: 'password', label: 'Nouveau mot de passe (laisser vide pour ne pas changer)',
+        value: '', placeholder: '••••••••', type: 'password' },
+    ], async (data) => {
+      const payload = {};
+      if (data.name && data.name.trim() && data.name.trim() !== u.name) payload.name = data.name.trim();
+      if (data.service !== undefined && data.service !== null) payload.service = data.service || null;
+      if (data.password) {
+        if (data.password.length < 6) throw new Error('Mot de passe trop court (6 caractères min)');
+        payload.password = data.password;
+      }
+      if (Object.keys(payload).length === 0) { Modal.close(); return; }
+      await Api.updateMe(payload);
+      this.currentUser = await Api.me();
+      await this.loadPermissions();
+      this._updateUI();
+      this._applyRoleFilter();
+      Toast.success('Profil mis à jour ✓');
+    }, 'Enregistrer');
   },
 
   // ── Menu ─────────────────────────────────────────────────────────

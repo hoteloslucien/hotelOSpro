@@ -166,36 +166,57 @@ def settings_list_users(
 def settings_create_user(
     data: UserCreate,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_permission("users.create")),
+    current_user: models.User = Depends(require_permission("users.create")),
 ):
     if db.query(models.User).filter(models.User.email == data.email).first():
         raise HTTPException(400, "Email déjà utilisé")
+    active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
     user = models.User(
         name=data.name, email=data.email,
         password_hash=hash_password(data.password),
         role=data.role, service=data.service,
+        hotel_id=active_hotel,
     )
     db.add(user); db.commit(); db.refresh(user)
     return user
 
 
+class UserUpdateBody(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    service: Optional[str] = None
+    name: Optional[str] = None
+
 @settings_users_router.patch("/{user_id}", response_model=UserOut)
 def settings_update_user(
     user_id: int,
-    role: str | None = None,
-    is_active: bool | None = None,
+    data: UserUpdateBody,
     db: Session = Depends(get_db),
     _: models.User = Depends(require_permission("users.update")),
 ):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable")
-    if role is not None:
-        # Vérifier que le rôle existe
-        if not db.query(Role).filter(Role.name == role, Role.is_active == True).first():
-            raise HTTPException(400, f"Rôle inconnu ou inactif : {role}")
-        user.role = role
-    if is_active is not None:
-        user.is_active = is_active
+    if data.role is not None:
+        if not db.query(Role).filter(Role.name == data.role, Role.is_active == True).first():
+            raise HTTPException(400, f"Rôle inconnu ou inactif : {data.role}")
+        user.role = data.role
+    if data.is_active is not None:
+        user.is_active = data.is_active
+    if data.service is not None:
+        user.service = data.service
+    if data.name is not None:
+        user.name = data.name
     db.commit(); db.refresh(user)
     return user
+
+@settings_users_router.delete("/{user_id}", status_code=204)
+def settings_delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("users.delete")),
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user: raise HTTPException(404, "Utilisateur introuvable")
+    if user.id == current_user.id: raise HTTPException(400, "Impossible de supprimer son propre compte")
+    db.delete(user); db.commit()

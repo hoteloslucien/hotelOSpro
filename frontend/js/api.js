@@ -1,9 +1,4 @@
-/* Hotel OS — API Client V4
- * - Single wrapper _req() for all calls
- * - Silent mode for polling (no logout on 401)
- * - No trailing slash convention
- * - No legacy methods
- */
+/* Hotel OS — API Client V5 — complet, correction activate user */
 const API_BASE = '';
 
 const Api = {
@@ -13,13 +8,6 @@ const Api = {
   getToken()   { return this._token || localStorage.getItem('hotel_os_token'); },
   clearToken() { this._token = null; localStorage.removeItem('hotel_os_token'); },
 
-  /**
-   * Central request wrapper.
-   * @param {string} method
-   * @param {string} path
-   * @param {*} body
-   * @param {object} opts — { silent: true } suppresses 401 logout (for polling)
-   */
   async _req(method, path, body, opts) {
     var silent = opts && opts.silent;
     var headers = { 'Content-Type': 'application/json' };
@@ -37,9 +25,7 @@ const Api = {
       if (!silent) {
         Api.clearToken();
         if (typeof App !== 'undefined' && App.currentUser) {
-          App.currentUser = null;
-          App.permissions = [];
-          App._showLogin();
+          App.currentUser = null; App.permissions = []; App._showLogin();
         }
       }
       throw new Error('Session expirée');
@@ -54,11 +40,8 @@ const Api = {
       throw new Error(err.detail || 'Erreur ' + res.status);
     }
     if (res.status === 204) return null;
-    // Safety: detect if service worker returned HTML instead of JSON
     var ct = res.headers.get('content-type') || '';
-    if (ct.indexOf('text/html') >= 0) {
-      throw new Error('Réponse inattendue du serveur');
-    }
+    if (ct.indexOf('text/html') >= 0) throw new Error('Réponse inattendue du serveur');
     return res.json();
   },
 
@@ -82,80 +65,91 @@ const Api = {
   me:            function()          { return Api.get('/auth/me'); },
   myPermissions: function()          { return Api.get('/auth/my-permissions'); },
   switchHotel:   function(id)        { return Api.post('/auth/switch-hotel?hotel_id=' + id, {}); },
+  updateMe:      function(d)         { return Api.patch('/auth/me', d); },
 
   // ── Dashboard ─────────────────────────────────────────────────
   stats: function() { return Api.get('/dashboard/stats'); },
 
   // ── Rooms ─────────────────────────────────────────────────────
-  rooms:      function(p) { return Api.get('/rooms' + Api._qs(p || {})); },
-  room:       function(id) { return Api.get('/rooms/' + id); },
-  createRoom: function(d)  { return Api.post('/rooms', d); },
-  updateRoom: function(id,d) { return Api.patch('/rooms/' + id, d); },
+  rooms:      function(p)     { return Api.get('/rooms' + Api._qs(p || {})); },
+  room:       function(id)    { return Api.get('/rooms/' + id); },
+  createRoom: function(d)     { return Api.post('/rooms', d); },
+  updateRoom: function(id, d) { return Api.patch('/rooms/' + id, d); },
+  deleteRoom: function(id)    { return Api.del('/rooms/' + id); },
 
   // ── Tasks ─────────────────────────────────────────────────────
-  tasks:      function(p) { return Api.get('/tasks' + Api._qs(p || {})); },
-  createTask: function(d)  { return Api.post('/tasks', d); },
-  updateTask: function(id,d) { return Api.patch('/tasks/' + id, d); },
-  deleteTask: function(id) { return Api.del('/tasks/' + id); },
+  tasks:      function(p)     { return Api.get('/tasks' + Api._qs(p || {})); },
+  createTask: function(d)     { return Api.post('/tasks', d); },
+  updateTask: function(id, d) { return Api.patch('/tasks/' + id, d); },
+  deleteTask: function(id)    { return Api.del('/tasks/' + id); },
 
   // ── Interventions ─────────────────────────────────────────────
-  interventions:      function(p) { return Api.get('/interventions' + Api._qs(p || {})); },
-  createIntervention: function(d)  { return Api.post('/interventions', d); },
-  updateIntervention: function(id,d) { return Api.patch('/interventions/' + id, d); },
-  takeIntervention:   function(id) { return Api.post('/interventions/' + id + '/take', {}); },
-  closeIntervention:  function(id,d) { return Api.post('/interventions/' + id + '/close', d); },
-  markDuplicate:      function(id,d) { return Api.post('/interventions/' + id + '/mark-duplicate', d); },
-  unmarkDuplicate:    function(id) { return Api.post('/interventions/' + id + '/unmark-duplicate', {}); },
+  interventions:      function(p)     { return Api.get('/interventions' + Api._qs(p || {})); },
+  createIntervention: function(d)     { return Api.post('/interventions', d); },
+  updateIntervention: function(id, d) { return Api.patch('/interventions/' + id, d); },
+  deleteIntervention: function(id)    { return Api.del('/interventions/' + id); },
+  takeIntervention:   function(id)    { return Api.post('/interventions/' + id + '/take', {}); },
+  closeIntervention:  function(id, d) { return Api.post('/interventions/' + id + '/close', d); },
+  markDuplicate:      function(id, d) { return Api.post('/interventions/' + id + '/mark-duplicate', d); },
+  unmarkDuplicate:    function(id)    { return Api.post('/interventions/' + id + '/unmark-duplicate', {}); },
 
   // ── Rounds ────────────────────────────────────────────────────
-  rounds:            function()        { return Api.get('/rounds'); },
-  createRound:       function(d)       { return Api.post('/rounds', d); },
-  updateRoundStatus: function(id, s)   { return Api.patch('/rounds/' + id + '/status?status=' + s); },
-  updateRoundRoom:   function(rid,rrid,d) { return Api.patch('/rounds/' + rid + '/rooms/' + rrid, d); },
+  rounds:            function()            { return Api.get('/rounds'); },
+  createRound:       function(d)           { return Api.post('/rounds', d); },
+  updateRoundStatus: function(id, s)       { return Api.patch('/rounds/' + id + '/status?status=' + s); },
+  updateRoundRoom:   function(rid, rrid, d){ return Api.patch('/rounds/' + rid + '/rooms/' + rrid, d); },
 
   // ── Conversations ─────────────────────────────────────────────
-  conversations:         function()      { return Api.get('/conversations'); },
-  createDirectConv:      function(uid)   { return Api.post('/conversations/direct', {user_id: uid}); },
-  createGroupConv:       function(d)     { return Api.post('/conversations/group', d); },
-  getConversation:       function(cid)   { return Api.get('/conversations/' + cid); },
-  convMessages:          function(cid, l){ return Api.get('/conversations/' + cid + '/messages' + (l ? '?limit=' + l : '')); },
-  sendConvMessage:       function(cid,d) { return Api.post('/conversations/' + cid + '/messages', d); },
-  markConvRead:          function(cid)   { return Api.post('/conversations/' + cid + '/read', {}); },
-  convUnreadCount:       function()      { return Api.get('/conversations/unread-count', {silent:true}); },
-  convParticipants:      function(cid)   { return Api.get('/conversations/' + cid + '/participants'); },
-  addConvParticipants:   function(cid,d) { return Api.post('/conversations/' + cid + '/participants', d); },
-  removeConvParticipant: function(cid,uid) { return Api.del('/conversations/' + cid + '/participants/' + uid); },
+  conversations:         function()       { return Api.get('/conversations'); },
+  createDirectConv:      function(uid)    { return Api.post('/conversations/direct', {user_id: uid}); },
+  createGroupConv:       function(d)      { return Api.post('/conversations/group', d); },
+  getConversation:       function(cid)    { return Api.get('/conversations/' + cid); },
+  updateConversation:    function(cid, d) { return Api.patch('/conversations/' + cid, d); },
+  deleteConversation:    function(cid)    { return Api.del('/conversations/' + cid); },
+  convMessages:          function(cid, l) { return Api.get('/conversations/' + cid + '/messages' + (l ? '?limit=' + l : '')); },
+  sendConvMessage:       function(cid, d) { return Api.post('/conversations/' + cid + '/messages', d); },
+  markConvRead:          function(cid)    { return Api.post('/conversations/' + cid + '/read', {}); },
+  convUnreadCount:       function()       { return Api.get('/conversations/unread-count', {silent:true}); },
+  convParticipants:      function(cid)    { return Api.get('/conversations/' + cid + '/participants'); },
+  addConvParticipants:   function(cid, d) { return Api.post('/conversations/' + cid + '/participants', d); },
+  removeConvParticipant: function(cid, uid){ return Api.del('/conversations/' + cid + '/participants/' + uid); },
 
   // ── QR ────────────────────────────────────────────────────────
   scanQR:    function(d) { return Api.post('/qr/scan', d); },
   checkouts: function()  { return Api.get('/qr/checkouts'); },
 
   // ── Reviews ───────────────────────────────────────────────────
-  reviews:      function(p) { return Api.get('/reviews' + Api._qs(p || {})); },
-  createReview: function(d)  { return Api.post('/reviews', d); },
-  updateReview: function(id,d) { return Api.patch('/reviews/' + id, d); },
+  reviews:      function(p)     { return Api.get('/reviews' + Api._qs(p || {})); },
+  createReview: function(d)     { return Api.post('/reviews', d); },
+  updateReview: function(id, d) { return Api.patch('/reviews/' + id, d); },
+  deleteReview: function(id)    { return Api.del('/reviews/' + id); },
 
   // ── Equipment V2 ──────────────────────────────────────────────
   equipmentFamilies:      function()      { return Api.get('/equipment/families'); },
   equipmentTypes:         function(p)     { return Api.get('/equipment/types' + Api._qs(p || {})); },
   equipmentItems:         function(p)     { return Api.get('/equipment/items' + Api._qs(p || {})); },
   createEquipmentItem:    function(d)     { return Api.post('/equipment/items', d); },
-  updateEquipmentItem:    function(id,d)  { return Api.patch('/equipment/items/' + id, d); },
+  updateEquipmentItem:    function(id, d) { return Api.patch('/equipment/items/' + id, d); },
   deleteEquipmentItem:    function(id)    { return Api.del('/equipment/items/' + id); },
-  // Familles et types via /settings
   createEquipmentFamily:  function(d)     { return Api.post('/settings/equipment-families', d); },
-  updateEquipmentFamily:  function(id,d)  { return Api.patch('/settings/equipment-families/' + id, d); },
+  updateEquipmentFamily:  function(id, d) { return Api.patch('/settings/equipment-families/' + id, d); },
   createEquipmentType:    function(d)     { return Api.post('/settings/equipment-types', d); },
-  updateEquipmentType:    function(id,d)  { return Api.patch('/settings/equipment-types/' + id, d); },
+  updateEquipmentType:    function(id, d) { return Api.patch('/settings/equipment-types/' + id, d); },
 
   // ── Stock ─────────────────────────────────────────────────────
-  stockItems:      function(low) { return Api.get('/stock/items' + (low ? '?low_only=true' : '')); },
-  createStockItem: function(d)   { return Api.post('/stock/items', d); },
-  stockMovements:  function(iid) { return Api.get('/stock/movements' + (iid ? '?item_id=' + iid : '')); },
-  addMovement:     function(d)   { return Api.post('/stock/movements', d); },
+  stockItems:      function(low)    { return Api.get('/stock/items' + (low ? '?low_only=true' : '')); },
+  createStockItem: function(d)      { return Api.post('/stock/items', d); },
+  updateStockItem: function(id, d)  { return Api.patch('/stock/items/' + id, d); },
+  deleteStockItem: function(id)     { return Api.del('/stock/items/' + id); },
+  stockMovements:  function(iid)    { return Api.get('/stock/movements' + (iid ? '?item_id=' + iid : '')); },
+  addMovement:     function(d)      { return Api.post('/stock/movements', d); },
 
   // ── Users ─────────────────────────────────────────────────────
-  users: function() { return Api.get('/users'); },
+  users:              function(p)     { return Api.get('/users' + Api._qs(p || {})); },
+  activateUser:       function(id)    { return Api.patch('/users/' + id + '/activate', {}); },
+  deactivateUser:     function(id)    { return Api.patch('/users/' + id + '/deactivate', {}); },
+  updateUser:         function(id, d) { return Api.patch('/users/' + id, d); },
+  deleteUser:         function(id)    { return Api.del('/users/' + id); },
 
   // ── Présence ──────────────────────────────────────────────────
   attendanceMyShift:       function()  { return Api.get('/attendance/my-shift', {silent:true}); },
@@ -172,26 +166,30 @@ const Api = {
   updateHotel:     function(id, d) { return Api.patch('/hotels/' + id, d); },
   disableHotel:    function(id)    { return Api.patch('/hotels/' + id + '/disable', {}); },
   reactivateHotel: function(id)    { return Api.patch('/hotels/' + id + '/reactivate', {}); },
-  // NB: rooms() et interventions() déjà définis plus haut avec filtres — pas de doublon ici
-  deleteRoom:  function(id)    { return Api.del('/rooms/' + id); },
   zones:       function(p)     { return Api.get('/zones' + Api._qs(p || {})); },
   createZone:  function(d)     { return Api.post('/zones', d); },
-  updateZone:  function(id,d)  { return Api.patch('/zones/' + id, d); },
+  updateZone:  function(id, d) { return Api.patch('/zones/' + id, d); },
   deleteZone:  function(id)    { return Api.del('/zones/' + id); },
   services:    function(p)     { return Api.get('/services' + Api._qs(p || {})); },
   auditLogs:   function(p)     { return Api.get('/audit' + Api._qs(p || {})); },
-  updateStockItem: function(id,d) { return Api.patch('/stock/items/' + id, d); },
-  deleteStockItem: function(id)   { return Api.del('/stock/items/' + id); },
-  taskCategories:      function()      { return Api.get('/settings/task-categories'); },
-  createTaskCategory:  function(d)     { return Api.post('/settings/task-categories', d); },
-  updateTaskCategory:  function(id,d)  { return Api.patch('/settings/task-categories/' + id, d); },
-  deleteTaskCategory:  function(id)    { return Api.del('/settings/task-categories/' + id); },
+
+  // ── Réglages (référentiels) ────────────────────────────────────
+  settingsUsers:      function()      { return Api.get('/settings/users'); },
+  settingsCreateUser: function(d)     { return Api.post('/settings/users', d); },
+  settingsUpdateUser: function(id, d) { return Api.patch('/settings/users/' + id, d); },
+  settingsDeleteUser: function(id)    { return Api.del('/settings/users/' + id); },
+
+  taskCategories:         function()      { return Api.get('/settings/task-categories'); },
+  createTaskCategory:     function(d)     { return Api.post('/settings/task-categories', d); },
+  updateTaskCategory:     function(id, d) { return Api.patch('/settings/task-categories/' + id, d); },
+  deleteTaskCategory:     function(id)    { return Api.del('/settings/task-categories/' + id); },
+
   interventionTypes:      function()      { return Api.get('/settings/intervention-types'); },
   createInterventionType: function(d)     { return Api.post('/settings/intervention-types', d); },
-  updateInterventionType: function(id,d)  { return Api.patch('/settings/intervention-types/' + id, d); },
+  updateInterventionType: function(id, d) { return Api.patch('/settings/intervention-types/' + id, d); },
   deleteInterventionType: function(id)    { return Api.del('/settings/intervention-types/' + id); },
 
-  // ── Rôles ─────────────────────────────────────────────────────
+  // ── Rôles & permissions ───────────────────────────────────────
   roles:              function()     { return Api.get('/roles'); },
   createRole:         function(d)    { return Api.post('/roles', d); },
   updateRole:         function(id,d) { return Api.put('/roles/' + id, d); },
@@ -199,15 +197,10 @@ const Api = {
   setRolePermissions: function(id,c) { return Api.put('/roles/' + id + '/permissions', {permission_codes:c}); },
   permissions:        function()     { return Api.get('/permissions'); },
 
-  // ── Réglages ──────────────────────────────────────────────────
-  settingsUsers:      function()     { return Api.get('/settings/users'); },
-  settingsCreateUser: function(d)    { return Api.post('/settings/users', d); },
-  settingsUpdateUser: function(id,d) { return Api.patch('/settings/users/' + id, d); },
-
   // ── Notifications ─────────────────────────────────────────────
-  notifications:             function(l) { return Api.get('/notifications' + (l ? '?limit=' + l : '')); },
-  notificationsUnread:       function()  { return Api.get('/notifications/unread-count', {silent:true}); },
-  markNotificationRead:      function(id){ return Api.post('/notifications/' + id + '/read', {}); },
-  markNotificationsRead:     function(ids){ return Api.post('/notifications/read', { notification_ids: ids }); },
-  markAllNotificationsRead:  function()  { return Api.post('/notifications/read-all', {}); },
+  notifications:            function(l)    { return Api.get('/notifications' + (l ? '?limit=' + l : '')); },
+  notificationsUnread:      function()     { return Api.get('/notifications/unread-count', {silent:true}); },
+  markNotificationRead:     function(id)   { return Api.post('/notifications/' + id + '/read', {}); },
+  markNotificationsRead:    function(ids)  { return Api.post('/notifications/read', { notification_ids: ids }); },
+  markAllNotificationsRead: function()     { return Api.post('/notifications/read-all', {}); },
 };

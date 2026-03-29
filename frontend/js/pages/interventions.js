@@ -10,6 +10,7 @@ const InterventionsPage = {
   equipFamilies: [],
   equipTypes: [],
   zones: [],
+  invTypes: [],
 
   async render() {
     var el = document.getElementById('page-content');
@@ -23,6 +24,7 @@ const InterventionsPage = {
         Api.equipmentFamilies().catch(function(){ return []; }),
         Api.equipmentTypes().catch(function(){ return []; }),
         Api.zones().catch(function(){ return []; }),
+        Api.interventionTypes().catch(function(){ return []; }),
       ]);
       this.items = results[0];
       this.rooms = results[1];
@@ -31,6 +33,7 @@ const InterventionsPage = {
       this.equipFamilies = results[4];
       this.equipTypes = results[5];
       this.zones = results[6];
+      this.invTypes = results[7];
       this._draw();
     } catch(e) { el.innerHTML = '<div class="alert alert-error">' + e.message + '</div>'; }
   },
@@ -152,9 +155,15 @@ const InterventionsPage = {
         return { value: String(e.id), label: e.name + (fam ? ' (' + fam.name + ')' : '') };
       })
     );
+    // Types depuis le référentiel
+    var typeOpts = [{ value: '', label: '— Aucun type —' }].concat(
+      this.invTypes.map(function(t) { return { value: t.name, label: t.name }; })
+    );
+
     Modal.form('Nouvelle intervention', [
-      { key: 'title', label: 'Titre', placeholder: 'Ex: Fuite robinet' },
+      { key: 'title', label: 'Titre *', placeholder: 'Ex: Fuite robinet' },
       { key: 'description', type: 'textarea', label: 'Description' },
+      { key: 'type', label: 'Type', type: 'select', options: typeOpts },
       { key: 'lieu', label: 'Lieu', type: 'select', options: lieuOpts },
       { key: 'priority', label: 'Priorité', type: 'select', value: 'normale',
         options: ['basse','normale','haute','urgente'].map(function(v) { return { value: v, label: Utils.label(v) }; }) },
@@ -163,15 +172,17 @@ const InterventionsPage = {
         options: [{ value:'staff', label:'Staff' },{ value:'client', label:'Client' },{ value:'qr', label:'QR Code' }] },
     ], async function(data) {
       if (!data.title) throw new Error('Titre requis');
-      // Parse lieu → zone or room_id
       var zone = null, room_id = null;
       if (data.lieu) {
         if (data.lieu.indexOf('zone:') === 0) zone = data.lieu.substring(5);
         else if (data.lieu.indexOf('room:') === 0) room_id = parseInt(data.lieu.substring(5));
       }
       await Api.createIntervention({
-        title: data.title, description: data.description, zone: zone,
-        priority: data.priority, source: data.source,
+        title: data.title,
+        description: data.description || null,
+        zone: zone || (data.type || null),
+        priority: data.priority,
+        source: data.source,
         room_id: room_id,
         equipment_item_id: data.equipment_item_id ? parseInt(data.equipment_item_id) : null,
       });
@@ -207,7 +218,7 @@ const InterventionsPage = {
       (inv.started_at ? '<b>Prise en charge :</b> ' + Utils.formatDate(inv.started_at) + '<br/>' : '') +
       (inv.completed_at ? '<b>Clôturée :</b> ' + Utils.formatDate(inv.completed_at) + '<br/>' : '') +
       (inv.resolution_note ? '<b>Résolution :</b> ' + this._esc(inv.resolution_note) + '<br/>' : '') +
-      (inv.is_duplicate ? '<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:13px"><b>⚠️ Doublon</b> de l\'intervention <b>#' + inv.duplicate_of_id + '</b>' + (inv.duplicate_reason ? '<br/>Raison : ' + this._esc(inv.duplicate_reason) : '') + '</div>' : '') +
+      (inv.is_duplicate ? '<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:13px"><b>⚠️ Doublon</b> de l\'intervention <b>#' + inv.duplicate_of_id + (function() { var linked = this.items ? this.items.find(function(x){ return x.id === inv.duplicate_of_id; }) : null; return linked ? ' — ' + linked.title : ''; }).call(this) + '</b>' + (inv.duplicate_reason ? '<br/>Raison : ' + this._esc(inv.duplicate_reason) : '') + '</div>' : '') +
       '</div>';
 
     // Contact buttons
@@ -249,10 +260,17 @@ const InterventionsPage = {
 
   _buildActions: function(inv) {
     var s = inv.status;
+    var me = App.currentUser;
+    var canDelete = me && (me.role === 'responsable' || me.role === 'responsable_technique' || me.role === 'direction');
     var btn = function(label, cls, fn) {
       return '<button class="btn ' + cls + ' btn-sm" data-inv-action="' + inv.id + '" data-inv-fn="' + fn + '">' + label + '</button>';
     };
     var actions = '';
+
+    // Édition toujours accessible (sauf clôturée/doublon)
+    if (s !== 'cloturee' && s !== 'duplicate') {
+      actions += btn('✏️ Modifier', 'btn-secondary', 'edit');
+    }
 
     // Primary actions by status
     if (s === 'nouvelle' || s === 'en_attente') {
@@ -276,6 +294,11 @@ const InterventionsPage = {
       actions += btn('↩ Retirer doublon','btn-warning','unmark_dup');
     }
 
+    // Suppression (managers seulement)
+    if (canDelete) {
+      actions += btn('🗑 Supprimer','btn-secondary','delete');
+    }
+
     // Bind after a tick
     var self = this;
     setTimeout(function() {
@@ -290,7 +313,34 @@ const InterventionsPage = {
   action: async function(id, type) {
     var self = this;
     try {
-      if (type === 'take') {
+      if (type === 'edit') {
+        var inv = this.items.find(function(x) { return x.id === id; });
+        if (!inv) return;
+        Modal.close(true);
+        var prioOpts = [{value:'basse',label:'Basse'},{value:'normale',label:'Normale'},{value:'haute',label:'Haute'},{value:'urgente',label:'Urgente'}];
+        var statusOpts = [{value:'nouvelle',label:'Nouvelle'},{value:'en_attente',label:'En attente'},{value:'prise',label:'Prise'},{value:'en_cours',label:'En cours'},{value:'pause',label:'En pause'},{value:'terminee',label:'Terminée'}];
+        var roomOpts = [{value:'',label:'— Aucune chambre —'}].concat(
+          this.rooms.map(function(r) { return {value:String(r.id), label:'Ch. '+r.number}; })
+        );
+        Modal.form('Modifier intervention #' + id, [
+          { key:'title',           label:'Titre *',         value:inv.title||'',           placeholder:'Titre' },
+          { key:'description',     label:'Description',     value:inv.description||'',     placeholder:'Détails…', type:'textarea' },
+          { key:'priority',        label:'Priorité',        value:inv.priority||'normale',  type:'select', options:prioOpts },
+          { key:'status',          label:'Statut',          value:inv.status||'nouvelle',   type:'select', options:statusOpts },
+          { key:'zone',            label:'Zone/Lieu',       value:inv.zone||'',            placeholder:'Ex: Hall, Piscine…' },
+          { key:'room_id',         label:'Chambre',         value:inv.room_id?String(inv.room_id):'', type:'select', options:roomOpts },
+          { key:'resolution_note', label:'Note résolution', value:inv.resolution_note||'', placeholder:'Ce qui a été fait…', type:'textarea' },
+        ], async function(data) {
+          if (!data.title) throw new Error('Titre requis');
+          await Api.updateIntervention(id, {
+            title:data.title, priority:data.priority, status:data.status,
+            zone:data.zone||null, room_id:data.room_id?parseInt(data.room_id):null,
+            resolution_note:data.resolution_note||null,
+          });
+          Toast.success('Intervention modifiée');
+          await self.render();
+        }, 'Enregistrer');
+      } else if (type === 'take') {
         await Api.takeIntervention(id);
         Modal.close();
         Toast.success('Intervention prise en charge');
@@ -339,6 +389,15 @@ const InterventionsPage = {
         Modal.close();
         Toast.success('Doublon retiré');
         await this.render();
+      } else if (type === 'delete') {
+        Modal.close(true);
+        Modal.confirm('Supprimer définitivement cette intervention ?', async function() {
+          try {
+            await Api.deleteIntervention(id);
+            Toast.success('Intervention supprimée');
+            await self.render();
+          } catch(e) { Toast.error(e.message); }
+        }, 'Supprimer', true);
       }
     } catch(e) { Toast.error(e.message); }
   },
