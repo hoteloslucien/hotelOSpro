@@ -13,8 +13,9 @@ PATCH /settings/users/{id}        → modifier rôle/actif (users.update)
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from .database import get_db
 from .auth import get_current_user, hash_password
