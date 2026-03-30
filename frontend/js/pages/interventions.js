@@ -109,7 +109,10 @@ const InterventionsPage = {
         list += '</div></div>';
       }
     } else {
-      list = Utils.emptyState('🔧', 'Aucune intervention' + (this.filter !== 'all' || this.priorityFilter !== 'all' ? ' avec ces filtres' : ''));
+      var emptyMsg = 'Aucune intervention';
+      if (self.onlyMine) emptyMsg = 'Aucune intervention créée ou prise par vous';
+      else if (this.filter !== 'all' || this.priorityFilter !== 'all') emptyMsg = 'Aucune intervention avec ces filtres';
+      list = Utils.emptyState('🔧', emptyMsg);
     }
 
     document.getElementById('page-content').innerHTML =

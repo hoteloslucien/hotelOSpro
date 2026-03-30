@@ -102,8 +102,15 @@ def list_zones(hotel_id:Optional[int]=None,db:Session=Depends(get_db),current_us
     return q.filter(models.Zone.is_active==True).order_by(models.Zone.name).all()
 @zones_router.post("",response_model=ZoneOut,status_code=201)
 def create_zone(d:ZoneCreate,db:Session=Depends(get_db),me:models.User=Depends(require_roles("responsable","responsable_technique","direction"))):
-    z=models.Zone(**d.model_dump()); db.add(z); db.flush()
-    log_audit(db,me.id,d.hotel_id,"create","zone",z.id); db.commit(); db.refresh(z); return z
+    hotel_id = d.hotel_id or getattr(me,"_active_hotel_id",None) or me.hotel_id
+    if not hotel_id:
+        first = db.query(models.Hotel).filter(models.Hotel.is_active==True).first()
+        hotel_id = first.id if first else None
+    if not hotel_id: raise HTTPException(400, "Aucun hôtel configuré")
+    zone_data = d.model_dump()
+    zone_data["hotel_id"] = hotel_id
+    z=models.Zone(**zone_data); db.add(z); db.flush()
+    log_audit(db,me.id,hotel_id,"create","zone",z.id); db.commit(); db.refresh(z); return z
 @zones_router.patch("/{zone_id}",response_model=ZoneOut)
 def update_zone(zone_id:int,d:ZoneUpdate,db:Session=Depends(get_db),me:models.User=Depends(require_roles("responsable","responsable_technique","direction"))):
     z=db.query(models.Zone).filter(models.Zone.id==zone_id).first()

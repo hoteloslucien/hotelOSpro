@@ -183,7 +183,7 @@ const TasksPage = {
           } catch(e) { Toast.error(e.message); }
         });
       });
-      document.querySelectorAll('[data-task-action]').forEach(function(b) {
+      document.querySelectorAll('[data-task-fn]').forEach(function(b) {
         b.addEventListener('click', function() { self.action(parseInt(b.dataset.taskId), b.dataset.taskFn); });
       });
     }, 50);

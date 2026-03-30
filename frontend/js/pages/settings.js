@@ -231,7 +231,9 @@ const SettingsPage = {
         Modal.form('Nouvelle zone', zoneFields(), async function(data) {
           if (!data.name) throw new Error('Nom requis');
           var me = App.currentUser;
-          await Api.createZone({ name:data.name, code:data.code||null, type:data.type||null, hotel_id:me.hotel_id });
+          var me = App.currentUser;
+          var hotelId = (me && me.hotel_id) ? me.hotel_id : 1;
+          await Api.createZone({ name:data.name, code:data.code||null, type:data.type||null, hotel_id:hotelId });
           Toast.success('Zone ajoutée');
           SettingsPage._showZonesManager();
         });
@@ -1042,8 +1044,21 @@ const SettingsPage = {
           if (!famId || isNaN(famId)) throw new Error('Sélectionnez une famille');
           if (!typId || isNaN(typId)) throw new Error('Sélectionnez un type');
           await Api.createEquipmentItem({ name:data.name, family_id:famId, type_id:typId, asset_code:data.asset_code||null, status:data.status||'ok', notes:data.notes||null });
-          Toast.success('Équipement ajouté'); SettingsPage._showTechniqueManager();
+          Toast.success('Équipement ajouté ✓'); SettingsPage._showTechniqueManager();
         });
+        setTimeout(function() {
+          var famSel = document.getElementById('mf-family_id');
+          var typSel = document.getElementById('mf-type_id');
+          if (famSel && typSel) {
+            famSel.addEventListener('change', function() {
+              var fid = famSel.value;
+              var ft = types.filter(function(t){ return String(t.family_id) === fid; });
+              typSel.innerHTML = ft.length
+                ? ft.map(function(t){ return '<option value="'+t.id+'">'+t.name+'</option>'; }).join('')
+                : '<option value="">— Aucun type —</option>';
+            });
+          }
+        }, 100);
       });
       el.querySelectorAll('[data-eq-edit]').forEach(function(b) {
         b.addEventListener('click', function() {
@@ -1084,7 +1099,7 @@ const SettingsPage = {
       var perms = App.permissions || [];
       var canCreate = perms.includes('users.create');
       var canUpdate = perms.includes('users.update');
-      var canDelete = perms.includes('users.delete');
+      var canDelete = perms.includes('users.delete') || (App.currentUser && App.currentUser.role === 'direction');
       var canRoles  = perms.includes('roles.view');
 
       var showInactive = SettingsPage._usersShowInactive || false;
@@ -1314,7 +1329,10 @@ const SettingsPage = {
           var codes = Array.from(document.querySelectorAll('.perm-toggle.on')).map(function(el) { return el.dataset.code; });
           await Api.setRolePermissions(roleId, codes);
           Modal.close(); Toast.success('Permissions mises à jour ✓');
-          if (App.currentUser && App.currentUser.role === roleData.name) { await App.loadPermissions(); App._applyRoleFilter(); }
+          // Recharger les permissions dans tous les cas (peuvent affecter l'UI du user actuel)
+          await App.loadPermissions();
+          App._applyRoleFilter();
+          Toast.success('Permissions mises à jour ✓ — rechargez si nécessaire');
         } catch(e) { Toast.error(e.message); btn.disabled=false; btn.textContent='Enregistrer'; }
       };
     } catch(e) {

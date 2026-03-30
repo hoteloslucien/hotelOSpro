@@ -309,14 +309,14 @@ def create_intervention(data: schemas.InterventionCreate, db: Session = Depends(
     db.add(inv); db.commit(); db.refresh(inv)
     prio = "critical" if data.priority == "urgente" else "high" if data.priority == "haute" else "medium"
     ntype = "intervention_urgent" if data.priority == "urgente" else "intervention_created"
-    notify_role(db, "responsable", hotel_id=active_hotel, type=ntype,
-                title="Nouvelle intervention" + (" urgente" if data.priority == "urgente" else ""),
-                message=inv.title, entity_type="intervention", entity_id=inv.id,
-                priority=prio, exclude_user_id=current_user.id)
-    notify_role(db, "direction", hotel_id=active_hotel, type=ntype,
-                title="Nouvelle intervention" + (" urgente" if data.priority == "urgente" else ""),
-                message=inv.title, entity_type="intervention", entity_id=inv.id,
-                priority=prio, exclude_user_id=current_user.id)
+    title_notif = "Nouvelle intervention" + (" URGENTE 🚨" if data.priority == "urgente" else "")
+    # Notifier responsables et direction (sans exclure le créateur pour les urgentes)
+    exclude = current_user.id if data.priority != "urgente" else None
+    for role in ("responsable", "direction", "responsable_technique"):
+        notify_role(db, role, hotel_id=active_hotel, type=ntype,
+                    title=title_notif, message=inv.title,
+                    entity_type="intervention", entity_id=inv.id,
+                    priority=prio, exclude_user_id=exclude)
     db.commit()
     return inv
 
@@ -646,6 +646,11 @@ def list_items(family_id: Optional[int] = None, type_id: Optional[int] = None,
 def create_item(payload: schemas.EquipmentItemCreate, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     active_hotel = getattr(current_user, "_active_hotel_id", None) or current_user.hotel_id
+    if not active_hotel:
+        first_hotel = db.query(models.Hotel).filter(models.Hotel.is_active == True).first()
+        active_hotel = first_hotel.id if first_hotel else None
+    if not active_hotel:
+        raise HTTPException(400, "Aucun hôtel configuré pour cet utilisateur")
     item = models.EquipmentItem(
         hotel_id=active_hotel,
         **payload.model_dump()

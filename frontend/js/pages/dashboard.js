@@ -204,13 +204,14 @@ const DashboardPage = {
   },
 
   _renderTeamOverview: function(shifts, stats) {
-    var present = 0, absent = 0, late = 0, onBreak = 0;
+    var present = 0, absent = 0, late = 0, onBreak = 0, finished = 0;
     for (var i = 0; i < shifts.length; i++) {
       var st = shifts[i].status;
       if (st === 'present') present++;
       else if (st === 'late') { present++; late++; }
       else if (st === 'absent') absent++;
       else if (st === 'on_break') onBreak++;
+      else if (st === 'finished') finished++;
     }
 
     var h = '<div class="dash-section-title">Équipe du jour</div>';
@@ -219,6 +220,7 @@ const DashboardPage = {
     h += '<div class="dash-team-kpi red"><div class="dash-team-val">' + absent + '</div><div class="dash-team-label">Absents</div></div>';
     h += '<div class="dash-team-kpi orange"><div class="dash-team-val">' + late + '</div><div class="dash-team-label">Retards</div></div>';
     h += '<div class="dash-team-kpi blue"><div class="dash-team-val">' + onBreak + '</div><div class="dash-team-label">En pause</div></div>';
+    h += '<div class="dash-team-kpi" style="background:rgba(20,184,166,.08)"><div class="dash-team-val" style="color:var(--teal)">' + finished + '</div><div class="dash-team-label">Terminés</div></div>';
     h += '</div>';
 
     // List late/absent (max 3)

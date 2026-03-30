@@ -116,10 +116,12 @@ var ConversationsPage = {
     var me = App.currentUser;
     var others = this._users.filter(function(u) { return u.id !== (me ? me.id : 0) && u.is_active; });
     var checks = others.map(function(u) {
-      return '<label class="group-check-item" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.04);cursor:pointer">'
-        + '<input type="checkbox" value="' + u.id + '" class="group-user-check" style="width:18px;height:18px;accent-color:var(--navy)" />'
-        + '<div><div style="font-weight:600;font-size:14px">' + this._esc(u.name) + '</div>'
-        + '<div style="font-size:12px;color:var(--text-3)">' + Utils.label(u.role) + (u.service ? ' · ' + Utils.label(u.service) : '') + '</div></div></label>';
+      return '<label class="group-check-item" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.04);cursor:pointer;border-radius:8px;padding:10px 8px;transition:background .15s">'
+        + '<input type="checkbox" value="' + u.id + '" class="group-user-check" style="width:20px;height:20px;accent-color:var(--navy);flex-shrink:0" />'
+        + '<div style="flex:1"><div style="font-weight:600;font-size:14px">' + this._esc(u.name) + '</div>'
+        + '<div style="font-size:12px;color:var(--text-3)">' + Utils.label(u.role) + (u.service ? ' · ' + Utils.label(u.service) : '') + '</div></div>'
+        + '<span class="check-badge" style="display:none;background:var(--navy);color:#fff;border-radius:50%;width:20px;height:20px;font-size:11px;align-items:center;justify-content:center">✓</span>'
+        + '</label>';
     }, this).join('');
 
     var body = '<div class="form-group"><label>Nom du groupe *</label>'
@@ -133,6 +135,15 @@ var ConversationsPage = {
 
     var self = this;
     setTimeout(function() {
+      // Visual feedback on checkbox check
+      document.querySelectorAll('.group-user-check').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+          var label = cb.closest('label');
+          var badge = label ? label.querySelector('.check-badge') : null;
+          if (label) label.style.background = cb.checked ? 'rgba(15,29,53,0.06)' : '';
+          if (badge) badge.style.display = cb.checked ? 'flex' : 'none';
+        });
+      });
       var createBtn = document.getElementById('group-create-btn');
       if (!createBtn) return;
       createBtn.addEventListener('click', async function() {
@@ -343,41 +354,49 @@ var ConversationsPage = {
       b.addEventListener('click', async function() {
         var uid = parseInt(b.dataset.removeUid);
         var nm = participants.find(function(p){ return p.user_id === uid; });
-        Modal.confirm('Retirer ' + (nm ? self._esc(nm.user_name) : 'ce membre') + ' du groupe ?', async function() {
-          try {
-            await Api.removeConvParticipant(self._convId, uid);
-            Toast.success('Membre retiré');
-            self._convs = await Api.conversations();
-            self.render();
-          } catch(e) { Toast.error(e.message); }
-        }, 'Retirer', true);
+        setTimeout(function() {
+          Modal.confirm('Retirer ' + (nm ? self._esc(nm.user_name) : 'ce membre') + ' du groupe ?', async function() {
+            try {
+              await Api.removeConvParticipant(self._convId, uid);
+              Toast.success('Membre retiré ✓');
+              self._convs = await Api.conversations();
+              self.render();
+            } catch(e) { Toast.error(e.message); }
+          }, 'Retirer', true);
+        }, 50);
       });
     });
 
     document.getElementById('group-leave-btn').addEventListener('click', function() {
-      Modal.confirm('Quitter le groupe "' + self._esc(conv.name || 'ce groupe') + '" ?', async function() {
-        try {
-          await Api.removeConvParticipant(self._convId, me.id);
-          Toast.success('Vous avez quitté le groupe');
-          self._convId = null; self._view = 'list';
-          self._convs = await Api.conversations();
-          self.render();
-        } catch(e) { Toast.error(e.message); }
-      }, 'Quitter', true);
+      setTimeout(function() {
+        Modal.confirm(
+          'Quitter ce groupe ? Vous ne verrez plus les messages (le groupe continuera pour les autres membres).',
+          async function() {
+            try {
+              await Api.removeConvParticipant(self._convId, me.id);
+              Toast.success('Vous avez quitté le groupe');
+              self._convId = null; self._view = 'list';
+              self._convs = await Api.conversations();
+              self.render();
+            } catch(e) { Toast.error(e.message); }
+          }, 'Quitter le groupe', true);
+      }, 50);
     });
 
     var deleteBtn = document.getElementById('group-delete-btn');
     if (deleteBtn) {
       deleteBtn.addEventListener('click', function() {
-        Modal.confirm('Supprimer définitivement le groupe "' + self._esc(conv.name || 'ce groupe') + '" ?\nTous les messages seront perdus.', async function() {
-          try {
-            await Api.deleteConversation(self._convId);
-            Toast.success('Groupe supprimé');
-            self._convId = null; self._view = 'list';
-            self._convs = await Api.conversations();
-            self.render();
-          } catch(e) { Toast.error(e.message); }
-        }, 'Supprimer', true);
+        setTimeout(function() {
+          Modal.confirm('Supprimer définitivement ce groupe ? Tous les messages seront perdus.', async function() {
+            try {
+              await Api.deleteConversation(self._convId);
+              Toast.success('Groupe supprimé ✓');
+              self._convId = null; self._view = 'list';
+              self._convs = await Api.conversations();
+              self.render();
+            } catch(e) { Toast.error(e.message); }
+          }, 'Supprimer définitivement', true);
+        }, 50);
       });
     }
   },
